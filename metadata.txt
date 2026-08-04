@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.1.0
-description=Diagnostic attribute browser for QField. Lists vector layers and previews fields and attributes.
+version=0.2.0
+description=Diagnostic attribute browser for QField using the native FeatureModel to expose real field names and values.
 author=Dominic Martin / OpenAI
 icon=icon.svg
-homepage=https://github.com/opengisch/QField
+homepage=https://github.com/DominicMartin2/QFieldTable
