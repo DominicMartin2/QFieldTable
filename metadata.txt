@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.3.0
-description=Read-only attribute table for QField with all records and all fields in a scrollable grid.
-author=Dominic Martin / OpenAI
-icon=icon.svg
+description=Consultation tabulaire en lecture seule des attributs d'une couche dans QField.
+version=0.3.1
+author=Dominic Martin
 homepage=https://github.com/DominicMartin2/QFieldTable
+icon=icon.svg

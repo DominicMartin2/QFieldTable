@@ -20,6 +20,10 @@ Item {
     property int totalFeatureCount: 0
     property string diagnosticMessage: ""
 
+    // Limite temporaire pour valider la grille sans créer des dizaines
+    // de milliers de cellules QML simultanément.
+    property int previewLimit: 50
+    property int visibleRowCount: Math.min(tableFeatures.length, previewLimit)
     property int rowHeight: 40
     property int idColumnWidth: 92
     property int dataColumnWidth: 190
@@ -27,39 +31,27 @@ Item {
 
     function layerIsVector(layer) {
         if (!layer) return false
-        try {
-            return layer.type === 0 || layer.type() === 0
-        } catch (e) {
-            return false
-        }
+        try { return layer.type === 0 || layer.type() === 0 } catch (e) { return false }
     }
 
     function layerName(layer) {
         if (!layer) return ""
-        try {
-            return String(typeof layer.name === "function" ? layer.name() : layer.name)
-        } catch (e) {
-            return qsTr("Couche sans nom")
-        }
+        try { return String(typeof layer.name === "function" ? layer.name() : layer.name) }
+        catch (e) { return qsTr("Couche sans nom") }
     }
 
     function layerId(layer) {
         if (!layer) return ""
-        try {
-            return String(typeof layer.id === "function" ? layer.id() : layer.id)
-        } catch (e) {
-            return ""
-        }
+        try { return String(typeof layer.id === "function" ? layer.id() : layer.id) }
+        catch (e) { return "" }
     }
 
     function appendCandidate(layer, seen) {
         if (!layer || !layerIsVector(layer)) return
-
         var id = layerId(layer)
         var name = layerName(layer)
         if (!id) id = name + "_" + vectorLayers.length
         if (seen[id]) return
-
         seen[id] = true
         vectorLayers.push(layer)
         layerModel.append({ "label": name, "layerId": id })
@@ -84,7 +76,7 @@ Item {
                 }
             }
         } catch (e1) {
-            console.log("QField Table v0.3: qgisProject.mapLayers() indisponible: " + e1)
+            console.log("QField Table v0.3.1: qgisProject.mapLayers() indisponible: " + e1)
         }
 
         try {
@@ -94,12 +86,10 @@ Item {
                     appendCandidate(canvasLayers[j], seen)
             }
         } catch (e2) {
-            console.log("QField Table v0.3: mapSettings.layers indisponible: " + e2)
+            console.log("QField Table v0.3.1: mapSettings.layers indisponible: " + e2)
         }
 
-        try {
-            appendCandidate(dashBoard.activeLayer, seen)
-        } catch (e3) {}
+        try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
         if (vectorLayers.length > 0) {
             layerCombo.currentIndex = 0
@@ -119,20 +109,15 @@ Item {
 
     function featureId(feature) {
         if (!feature) return "?"
-        try {
-            return String(typeof feature.id === "function" ? feature.id() : feature.id)
-        } catch (e) {
-            return "?"
-        }
+        try { return String(typeof feature.id === "function" ? feature.id() : feature.id) }
+        catch (e) { return "?" }
     }
 
     function formatValue(value) {
-        if (value === null || value === undefined)
-            return ""
-
+        if (value === null || value === undefined) return ""
         var text = String(value)
-        if (text === "Invalid Date")
-            return ""
+        if (text === "Invalid Date") return ""
+        if (text === "NULL") return ""
         return text
     }
 
@@ -140,7 +125,6 @@ Item {
         tableFeatures = []
         totalFeatureCount = 0
         diagnosticMessage = ""
-
         if (!selectedLayer) return
 
         var found = []
@@ -154,12 +138,13 @@ Item {
             totalFeatureCount = found.length
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.3: " + error)
+            console.log("QField Table v0.3.1: " + error)
         }
 
-        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s)")
+        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); aperçu des %3 premières lignes")
                 .arg(layerName(selectedLayer))
                 .arg(totalFeatureCount)
+                .arg(visibleRowCount)
     }
 
     function openBrowser() {
@@ -169,14 +154,13 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.3 chargé")
+        console.log("QField Table v0.3.1 chargé")
     }
 
     Connections {
         target: iface
         function onLoadProjectEnded() {
-            if (browserDialog.visible)
-                refreshLayers()
+            if (browserDialog.visible) refreshLayers()
         }
     }
 
@@ -195,7 +179,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.3")
+        title: qsTr("QField Table — v0.3.1")
         standardButtons: Dialog.Close
 
         width: Math.min(parent ? parent.width - 20 : 900, 1500)
@@ -208,12 +192,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-
-                Label {
-                    text: qsTr("Couche")
-                    font.bold: true
-                }
-
+                Label { text: qsTr("Couche"); font.bold: true }
                 ComboBox {
                     id: layerCombo
                     Layout.fillWidth: true
@@ -221,11 +200,7 @@ Item {
                     textRole: "label"
                     onActivated: plugin.selectLayer(currentIndex)
                 }
-
-                Button {
-                    text: qsTr("Actualiser")
-                    onClicked: plugin.refreshLayers()
-                }
+                Button { text: qsTr("Actualiser"); onClicked: plugin.refreshLayers() }
             }
 
             Label {
@@ -243,108 +218,88 @@ Item {
                 color: Theme.errorColor
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Theme.lightGray
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
+
+            // Un FeatureModel séparé sert uniquement à produire les en-têtes.
+            FeatureModel {
+                id: headerFeatureModel
+                currentLayer: plugin.selectedLayer
+                feature: plugin.tableFeatures.length > 0 ? plugin.tableFeatures[0] : null
             }
 
-            Item {
-                id: tableArea
+            Flickable {
+                id: gridFlick
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.HorizontalAndVerticalFlick
 
-                FeatureModel {
-                    id: headerFeatureModel
-                    currentLayer: plugin.selectedLayer
-                    feature: plugin.tableFeatures.length > 0 ? plugin.tableFeatures[0] : null
-                }
+                contentWidth: Math.max(width, plugin.idColumnWidth + headerFeatureModel.count * plugin.dataColumnWidth)
+                contentHeight: plugin.headerHeight + plugin.visibleRowCount * plugin.rowHeight
 
-                property real fullTableWidth: plugin.idColumnWidth + headerFeatureModel.count * plugin.dataColumnWidth
+                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                Flickable {
-                    id: horizontalFlick
-                    anchors.fill: parent
-                    clip: true
-                    contentWidth: Math.max(width, tableArea.fullTableWidth)
-                    contentHeight: height
-                    flickableDirection: Flickable.HorizontalFlick
-                    boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    id: gridColumn
+                    width: gridFlick.contentWidth
 
-                    ScrollBar.horizontal: ScrollBar { }
+                    Rectangle {
+                        width: gridColumn.width
+                        height: plugin.headerHeight
+                        color: Theme.mainBackgroundColor
+                        border.color: Theme.lightGray
 
-                    ListView {
-                        id: tableList
-                        width: Math.max(horizontalFlick.width, tableArea.fullTableWidth)
-                        height: horizontalFlick.height
-                        model: plugin.tableFeatures
-                        clip: true
-                        spacing: 0
-                        boundsBehavior: Flickable.StopAtBounds
+                        Row {
+                            anchors.fill: parent
 
-                        ScrollBar.vertical: ScrollBar { }
+                            Rectangle {
+                                width: plugin.idColumnWidth
+                                height: parent.height
+                                color: Theme.mainBackgroundColor
+                                border.color: Theme.lightGray
+                                Label {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    text: qsTr("Entité")
+                                    font.bold: true
+                                    verticalAlignment: Text.AlignVCenter
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                            }
 
-                        headerPositioning: ListView.OverlayHeader
-                        header: Rectangle {
-                            z: 5
-                            width: tableList.width
-                            height: plugin.headerHeight
-                            color: Theme.mainBackgroundColor
-                            border.color: Theme.lightGray
-
-                            Row {
-                                anchors.fill: parent
-
-                                Rectangle {
-                                    width: plugin.idColumnWidth
-                                    height: parent.height
+                            Repeater {
+                                model: headerFeatureModel
+                                delegate: Rectangle {
+                                    width: plugin.dataColumnWidth
+                                    height: plugin.headerHeight
                                     color: Theme.mainBackgroundColor
                                     border.color: Theme.lightGray
-
                                     Label {
                                         anchors.fill: parent
                                         anchors.margins: 6
-                                        text: qsTr("Entité")
+                                        text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ")
                                         font.bold: true
-                                        verticalAlignment: Text.AlignVCenter
-                                        horizontalAlignment: Text.AlignHCenter
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 2
                                         elide: Text.ElideRight
-                                    }
-                                }
-
-                                Repeater {
-                                    model: headerFeatureModel
-
-                                    delegate: Rectangle {
-                                        required property int index
-                                        width: plugin.dataColumnWidth
-                                        height: plugin.headerHeight
-                                        color: Theme.mainBackgroundColor
-                                        border.color: Theme.lightGray
-
-                                        Label {
-                                            anchors.fill: parent
-                                            anchors.margins: 6
-                                            text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ %1").arg(index + 1)
-                                            font.bold: true
-                                            wrapMode: Text.WordWrap
-                                            maximumLineCount: 2
-                                            elide: Text.ElideRight
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
+                                        verticalAlignment: Text.AlignVCenter
                                     }
                                 }
                             }
                         }
+                    }
+
+                    Repeater {
+                        model: plugin.visibleRowCount
 
                         delegate: Rectangle {
                             id: tableRow
-                            required property var modelData
-                            property var featureObject: modelData
-                            width: tableList.width
+                            property var featureObject: plugin.tableFeatures[index]
+                            width: gridColumn.width
                             height: plugin.rowHeight
-                            color: index % 2 === 0 ? Theme.mainBackgroundColor : Theme.mainBackgroundColorAlternate
+                            color: index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
                             border.color: Theme.lightGray
 
                             FeatureModel {
@@ -361,7 +316,6 @@ Item {
                                     height: parent.height
                                     color: "transparent"
                                     border.color: Theme.lightGray
-
                                     Label {
                                         anchors.fill: parent
                                         anchors.margins: 6
@@ -374,13 +328,11 @@ Item {
 
                                 Repeater {
                                     model: rowFeatureModel
-
                                     delegate: Rectangle {
                                         width: plugin.dataColumnWidth
                                         height: plugin.rowHeight
                                         color: "transparent"
                                         border.color: Theme.lightGray
-
                                         Label {
                                             anchors.fill: parent
                                             anchors.margins: 6
@@ -388,28 +340,10 @@ Item {
                                             verticalAlignment: Text.AlignVCenter
                                             elide: Text.ElideRight
                                             clip: true
-
-                                            ToolTip.visible: cellMouse.containsMouse && text.length > 0
-                                            ToolTip.text: text
-
-                                            MouseArea {
-                                                id: cellMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                acceptedButtons: Qt.NoButton
-                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-
-                        footer: Label {
-                            width: tableList.width
-                            visible: plugin.tableFeatures.length === 0 && plugin.diagnosticMessage.length === 0
-                            horizontalAlignment: Text.AlignHCenter
-                            text: qsTr("Aucun enregistrement à afficher.")
-                            padding: 16
                         }
                     }
                 }
@@ -417,7 +351,7 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Lecture seule — faites défiler horizontalement pour consulter tous les champs.")
+                text: qsTr("Lecture seule — aperçu limité temporairement à %1 lignes.").arg(plugin.previewLimit)
                 opacity: 0.7
                 horizontalAlignment: Text.AlignRight
             }
