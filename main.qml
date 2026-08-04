@@ -16,10 +16,14 @@ Item {
 
     property var vectorLayers: []
     property var selectedLayer: null
-    property var previewFeatures: []
-    property int previewLimit: 10
+    property var tableFeatures: []
     property int totalFeatureCount: 0
     property string diagnosticMessage: ""
+
+    property int rowHeight: 40
+    property int idColumnWidth: 92
+    property int dataColumnWidth: 190
+    property int headerHeight: 54
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -64,7 +68,7 @@ Item {
     function refreshLayers() {
         vectorLayers = []
         layerModel.clear()
-        previewFeatures = []
+        tableFeatures = []
         diagnosticMessage = ""
         var seen = ({})
 
@@ -80,7 +84,7 @@ Item {
                 }
             }
         } catch (e1) {
-            console.log("QField Table v0.2: qgisProject.mapLayers() indisponible: " + e1)
+            console.log("QField Table v0.3: qgisProject.mapLayers() indisponible: " + e1)
         }
 
         try {
@@ -90,7 +94,7 @@ Item {
                     appendCandidate(canvasLayers[j], seen)
             }
         } catch (e2) {
-            console.log("QField Table v0.2: mapSettings.layers indisponible: " + e2)
+            console.log("QField Table v0.3: mapSettings.layers indisponible: " + e2)
         }
 
         try {
@@ -110,7 +114,7 @@ Item {
     function selectLayer(index) {
         if (index < 0 || index >= vectorLayers.length) return
         selectedLayer = vectorLayers[index]
-        inspectSelectedLayer()
+        loadSelectedLayer()
     }
 
     function featureId(feature) {
@@ -122,17 +126,18 @@ Item {
         }
     }
 
-    function displayName(feature) {
-        if (!feature || !selectedLayer) return ""
-        try {
-            return String(FeatureUtils.displayName(selectedLayer, feature))
-        } catch (e) {
+    function formatValue(value) {
+        if (value === null || value === undefined)
             return ""
-        }
+
+        var text = String(value)
+        if (text === "Invalid Date")
+            return ""
+        return text
     }
 
-    function inspectSelectedLayer() {
-        previewFeatures = []
+    function loadSelectedLayer() {
+        tableFeatures = []
         totalFeatureCount = 0
         diagnosticMessage = ""
 
@@ -143,29 +148,18 @@ Item {
             var iterator = LayerUtils.createFeatureIterator(selectedLayer)
             while (iterator.hasNext()) {
                 var feature = iterator.next()
-                totalFeatureCount++
-                if (found.length < previewLimit)
-                    found.push(feature)
+                found.push(feature)
             }
-            previewFeatures = found
+            tableFeatures = found
+            totalFeatureCount = found.length
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.2: " + error)
+            console.log("QField Table v0.3: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s)")
                 .arg(layerName(selectedLayer))
                 .arg(totalFeatureCount)
-    }
-
-    function formatValue(value) {
-        if (value === null || value === undefined)
-            return "∅"
-
-        var text = String(value)
-        if (text.length === 0)
-            return "\"\""
-        return text
     }
 
     function openBrowser() {
@@ -175,7 +169,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.2 chargé")
+        console.log("QField Table v0.3 chargé")
     }
 
     Connections {
@@ -201,11 +195,11 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — diagnostic v0.2")
+        title: qsTr("QField Table — v0.3")
         standardButtons: Dialog.Close
 
-        width: Math.min(parent ? parent.width - 24 : 800, 1050)
-        height: Math.min(parent ? parent.height - 24 : 700, 900)
+        width: Math.min(parent ? parent.width - 20 : 900, 1500)
+        height: Math.min(parent ? parent.height - 20 : 720, 980)
         x: parent ? (parent.width - width) / 2 : 0
         y: parent ? (parent.height - height) / 2 : 0
 
@@ -243,13 +237,6 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: qsTr("Aperçu en lecture seule des %1 premières entités. Les champs et valeurs sont fournis par le FeatureModel natif de QField.").arg(plugin.previewLimit)
-                opacity: 0.75
-            }
-
-            Label {
-                Layout.fillWidth: true
                 visible: plugin.diagnosticMessage.length > 0
                 text: qsTr("Erreur : %1").arg(plugin.diagnosticMessage)
                 wrapMode: Text.WordWrap
@@ -262,87 +249,177 @@ Item {
                 color: Theme.lightGray
             }
 
-            ListView {
-                id: featureList
+            Item {
+                id: tableArea
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                spacing: 8
-                model: plugin.previewFeatures
 
-                ScrollBar.vertical: ScrollBar { }
+                FeatureModel {
+                    id: headerFeatureModel
+                    currentLayer: plugin.selectedLayer
+                    feature: plugin.tableFeatures.length > 0 ? plugin.tableFeatures[0] : null
+                }
 
-                delegate: Frame {
-                    id: featureFrame
-                    required property var modelData
-                    property var featureObject: modelData
+                property real fullTableWidth: plugin.idColumnWidth + headerFeatureModel.count * plugin.dataColumnWidth
 
-                    width: featureList.width - (featureList.ScrollBar.vertical.visible ? 14 : 0)
-                    height: featureColumn.implicitHeight + 20
+                Flickable {
+                    id: horizontalFlick
+                    anchors.fill: parent
+                    clip: true
+                    contentWidth: Math.max(width, tableArea.fullTableWidth)
+                    contentHeight: height
+                    flickableDirection: Flickable.HorizontalFlick
+                    boundsBehavior: Flickable.StopAtBounds
 
-                    FeatureModel {
-                        id: nativeFeatureModel
-                        currentLayer: plugin.selectedLayer
-                        feature: featureFrame.featureObject
-                    }
+                    ScrollBar.horizontal: ScrollBar { }
 
-                    ColumnLayout {
-                        id: featureColumn
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        spacing: 2
+                    ListView {
+                        id: tableList
+                        width: Math.max(horizontalFlick.width, tableArea.fullTableWidth)
+                        height: horizontalFlick.height
+                        model: plugin.tableFeatures
+                        clip: true
+                        spacing: 0
+                        boundsBehavior: Flickable.StopAtBounds
 
-                        Label {
-                            Layout.fillWidth: true
-                            font.bold: true
-                            text: {
-                                var fid = plugin.featureId(featureFrame.featureObject)
-                                var name = plugin.displayName(featureFrame.featureObject)
-                                return name.length > 0
-                                        ? qsTr("Entité %1 — %2").arg(fid).arg(name)
-                                        : qsTr("Entité %1").arg(fid)
+                        ScrollBar.vertical: ScrollBar { }
+
+                        headerPositioning: ListView.OverlayHeader
+                        header: Rectangle {
+                            z: 5
+                            width: tableList.width
+                            height: plugin.headerHeight
+                            color: Theme.mainBackgroundColor
+                            border.color: Theme.lightGray
+
+                            Row {
+                                anchors.fill: parent
+
+                                Rectangle {
+                                    width: plugin.idColumnWidth
+                                    height: parent.height
+                                    color: Theme.mainBackgroundColor
+                                    border.color: Theme.lightGray
+
+                                    Label {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        text: qsTr("Entité")
+                                        font.bold: true
+                                        verticalAlignment: Text.AlignVCenter
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Repeater {
+                                    model: headerFeatureModel
+
+                                    delegate: Rectangle {
+                                        required property int index
+                                        width: plugin.dataColumnWidth
+                                        height: plugin.headerHeight
+                                        color: Theme.mainBackgroundColor
+                                        border.color: Theme.lightGray
+
+                                        Label {
+                                            anchors.fill: parent
+                                            anchors.margins: 6
+                                            text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ %1").arg(index + 1)
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        Repeater {
-                            model: nativeFeatureModel
+                        delegate: Rectangle {
+                            id: tableRow
+                            required property var modelData
+                            property var featureObject: modelData
+                            width: tableList.width
+                            height: plugin.rowHeight
+                            color: index % 2 === 0 ? Theme.mainBackgroundColor : Theme.mainBackgroundColorAlternate
+                            border.color: Theme.lightGray
 
-                            delegate: RowLayout {
-                                width: featureColumn.width
-                                spacing: 6
+                            FeatureModel {
+                                id: rowFeatureModel
+                                currentLayer: plugin.selectedLayer
+                                feature: tableRow.featureObject
+                            }
 
-                                Label {
-                                    Layout.preferredWidth: Math.min(280, featureColumn.width * 0.38)
-                                    Layout.maximumWidth: Math.min(280, featureColumn.width * 0.38)
-                                    font.bold: true
-                                    elide: Text.ElideRight
-                                    text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ")
+                            Row {
+                                anchors.fill: parent
+
+                                Rectangle {
+                                    width: plugin.idColumnWidth
+                                    height: parent.height
+                                    color: "transparent"
+                                    border.color: Theme.lightGray
+
+                                    Label {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        text: plugin.featureId(tableRow.featureObject)
+                                        verticalAlignment: Text.AlignVCenter
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                    }
                                 }
 
-                                Label {
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.WrapAnywhere
-                                    text: plugin.formatValue(model.AttributeValue)
+                                Repeater {
+                                    model: rowFeatureModel
+
+                                    delegate: Rectangle {
+                                        width: plugin.dataColumnWidth
+                                        height: plugin.rowHeight
+                                        color: "transparent"
+                                        border.color: Theme.lightGray
+
+                                        Label {
+                                            anchors.fill: parent
+                                            anchors.margins: 6
+                                            text: plugin.formatValue(model.AttributeValue)
+                                            verticalAlignment: Text.AlignVCenter
+                                            elide: Text.ElideRight
+                                            clip: true
+
+                                            ToolTip.visible: cellMouse.containsMouse && text.length > 0
+                                            ToolTip.text: text
+
+                                            MouseArea {
+                                                id: cellMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                acceptedButtons: Qt.NoButton
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
 
-                        Label {
-                            Layout.fillWidth: true
-                            visible: nativeFeatureModel.count === 0
-                            text: qsTr("Aucun attribut exposé par FeatureModel pour cette entité.")
-                            opacity: 0.7
+                        footer: Label {
+                            width: tableList.width
+                            visible: plugin.tableFeatures.length === 0 && plugin.diagnosticMessage.length === 0
+                            horizontalAlignment: Text.AlignHCenter
+                            text: qsTr("Aucun enregistrement à afficher.")
+                            padding: 16
                         }
                     }
                 }
+            }
 
-                footer: Label {
-                    width: featureList.width
-                    visible: plugin.previewFeatures.length === 0 && plugin.diagnosticMessage.length === 0
-                    horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("Aucun enregistrement à afficher.")
-                    padding: 16
-                }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Lecture seule — faites défiler horizontalement pour consulter tous les champs.")
+                opacity: 0.7
+                horizontalAlignment: Text.AlignRight
             }
         }
     }

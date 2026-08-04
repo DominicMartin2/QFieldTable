@@ -1,22 +1,29 @@
-QField Table v0.2.0 — diagnostic
-================================
+QField Table v0.3.0
+===================
 
-Objectif
---------
-Confirmer l'accès aux vrais noms de champs et aux valeurs d'attributs en utilisant
-le FeatureModel natif de QField, plutôt que d'interroger directement QgsFields depuis QML.
+Première vraie table d'attributs en lecture seule.
 
 Fonctions
 ---------
 - choix d'une couche vectorielle;
-- comptage des entités par l'itérateur QField;
-- aperçu des 10 premières entités;
-- affichage des noms de champs et valeurs via FeatureModel;
+- chargement de tous les enregistrements;
+- affichage d'une ligne par entité;
+- affichage de tous les champs sous forme de colonnes;
+- noms de colonnes fondés sur les alias du projet QGIS;
+- défilement horizontal et vertical;
+- première colonne fixe contenant l'identifiant de l'entité;
+- valeurs affichées par le FeatureModel natif de QField.
+
+Limites de cette version
+------------------------
+- pas encore de tri;
+- pas encore de recherche;
+- pas encore de filtre;
 - lecture seule.
 
 Installation
 ------------
-Publier QFieldTable_v0.2.zip comme fichier joint d'une Release GitHub, puis utiliser
+Publier QFieldTable_v0.3.zip comme fichier joint d'une Release GitHub, puis utiliser
 l'URL directe du ZIP dans le gestionnaire de plugins de QField.
 
 Dépôt
