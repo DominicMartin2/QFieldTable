@@ -1,4 +1,4 @@
-QField Table v0.3.2
+QField Table v0.3.3
 
 Correctif de la première grille tabulaire.
 
@@ -8,3 +8,5 @@ Correctif de la première grille tabulaire.
 - affiche temporairement les 50 premières entités;
 - défilement horizontal et vertical;
 - lecture seule.
+
+Correctif v0.3.3 : les cellules de chaque ligne utilisent désormais un ListView horizontal afin d’afficher tous les attributs.

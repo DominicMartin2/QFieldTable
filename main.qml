@@ -76,7 +76,7 @@ Item {
                 }
             }
         } catch (e1) {
-            console.log("QField Table v0.3.2: qgisProject.mapLayers() indisponible: " + e1)
+            console.log("QField Table v0.3.3: qgisProject.mapLayers() indisponible: " + e1)
         }
 
         try {
@@ -86,7 +86,7 @@ Item {
                     appendCandidate(canvasLayers[j], seen)
             }
         } catch (e2) {
-            console.log("QField Table v0.3.2: mapSettings.layers indisponible: " + e2)
+            console.log("QField Table v0.3.3: mapSettings.layers indisponible: " + e2)
         }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
@@ -138,7 +138,7 @@ Item {
             totalFeatureCount = found.length
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.3.2: " + error)
+            console.log("QField Table v0.3.3: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); aperçu des %3 premières lignes")
@@ -154,7 +154,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.3.2 chargé")
+        console.log("QField Table v0.3.3 chargé")
     }
 
     Connections {
@@ -179,7 +179,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.3.2")
+        title: qsTr("QField Table — v0.3.3")
         standardButtons: Dialog.Close
 
         width: Math.min(parent ? parent.width - 20 : 900, 1500)
@@ -359,9 +359,16 @@ Item {
                                     }
                                 }
 
-                                Repeater {
+                                ListView {
+                                    width: Math.max(1, tableContent.headerColumnCount) * plugin.dataColumnWidth
+                                    height: plugin.rowHeight
+                                    orientation: ListView.Horizontal
+                                    interactive: false
+                                    boundsBehavior: Flickable.StopAtBounds
                                     model: rowModel
+
                                     delegate: Rectangle {
+                                        required property var model
                                         width: plugin.dataColumnWidth
                                         height: plugin.rowHeight
                                         color: "transparent"
