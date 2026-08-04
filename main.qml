@@ -76,7 +76,7 @@ Item {
                 }
             }
         } catch (e1) {
-            console.log("QField Table v0.3.1: qgisProject.mapLayers() indisponible: " + e1)
+            console.log("QField Table v0.3.2: qgisProject.mapLayers() indisponible: " + e1)
         }
 
         try {
@@ -86,7 +86,7 @@ Item {
                     appendCandidate(canvasLayers[j], seen)
             }
         } catch (e2) {
-            console.log("QField Table v0.3.1: mapSettings.layers indisponible: " + e2)
+            console.log("QField Table v0.3.2: mapSettings.layers indisponible: " + e2)
         }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
@@ -138,7 +138,7 @@ Item {
             totalFeatureCount = found.length
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.3.1: " + error)
+            console.log("QField Table v0.3.2: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); aperçu des %3 premières lignes")
@@ -154,7 +154,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.3.1 chargé")
+        console.log("QField Table v0.3.2 chargé")
     }
 
     Connections {
@@ -179,7 +179,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.3.1")
+        title: qsTr("QField Table — v0.3.2")
         standardButtons: Dialog.Close
 
         width: Math.min(parent ? parent.width - 20 : 900, 1500)
@@ -220,92 +220,125 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
 
-            // Un FeatureModel séparé sert uniquement à produire les en-têtes.
-            FeatureModel {
-                id: headerFeatureModel
-                currentLayer: plugin.selectedLayer
-                feature: plugin.tableFeatures.length > 0 ? plugin.tableFeatures[0] : null
-            }
-
             Flickable {
-                id: gridFlick
+                id: horizontalFlick
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                flickableDirection: Flickable.HorizontalAndVerticalFlick
+                flickableDirection: Flickable.HorizontalFlick
 
-                contentWidth: Math.max(width, plugin.idColumnWidth + headerFeatureModel.count * plugin.dataColumnWidth)
-                contentHeight: plugin.headerHeight + plugin.visibleRowCount * plugin.rowHeight
+                // La largeur réelle est ajustée par le premier FeatureModel visible.
+                contentWidth: Math.max(width, tableContent.width)
+                contentHeight: height
 
                 ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                Column {
-                    id: gridColumn
-                    width: gridFlick.contentWidth
+                Item {
+                    id: tableContent
+                    width: plugin.idColumnWidth + Math.max(1, headerColumnCount) * plugin.dataColumnWidth
+                    height: horizontalFlick.height
+                    property int headerColumnCount: 1
 
-                    Rectangle {
-                        width: gridColumn.width
+                    // En-tête construit dans un délégué ListView, comme dans la v0.2.
+                    ListView {
+                        id: headerHost
+                        x: 0
+                        y: 0
+                        width: parent.width
                         height: plugin.headerHeight
-                        color: Theme.mainBackgroundColor
-                        border.color: Theme.lightGray
+                        interactive: false
+                        model: plugin.tableFeatures.length > 0 ? [plugin.tableFeatures[0]] : []
 
-                        Row {
-                            anchors.fill: parent
+                        delegate: Item {
+                            required property var modelData
+                            width: headerHost.width
+                            height: plugin.headerHeight
 
-                            Rectangle {
-                                width: plugin.idColumnWidth
-                                height: parent.height
-                                color: Theme.mainBackgroundColor
-                                border.color: Theme.lightGray
-                                Label {
-                                    anchors.fill: parent
-                                    anchors.margins: 6
-                                    text: qsTr("Entité")
-                                    font.bold: true
-                                    verticalAlignment: Text.AlignVCenter
-                                    horizontalAlignment: Text.AlignHCenter
+                            FeatureModel {
+                                id: headerModel
+                                currentLayer: plugin.selectedLayer
+                                feature: modelData
+                            }
+
+                            Component.onCompleted: tableContent.headerColumnCount = Math.max(1, headerModel.count)
+                            Connections {
+                                target: headerModel
+                                function onCountChanged() {
+                                    tableContent.headerColumnCount = Math.max(1, headerModel.count)
                                 }
                             }
 
-                            Repeater {
-                                model: headerFeatureModel
-                                delegate: Rectangle {
-                                    width: plugin.dataColumnWidth
-                                    height: plugin.headerHeight
+                            Row {
+                                anchors.fill: parent
+
+                                Rectangle {
+                                    width: plugin.idColumnWidth
+                                    height: parent.height
                                     color: Theme.mainBackgroundColor
                                     border.color: Theme.lightGray
                                     Label {
                                         anchors.fill: parent
                                         anchors.margins: 6
-                                        text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ")
+                                        text: qsTr("Entité")
                                         font.bold: true
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 2
-                                        elide: Text.ElideRight
                                         verticalAlignment: Text.AlignVCenter
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+                                }
+
+                                Repeater {
+                                    model: headerModel
+                                    delegate: Rectangle {
+                                        width: plugin.dataColumnWidth
+                                        height: plugin.headerHeight
+                                        color: Theme.mainBackgroundColor
+                                        border.color: Theme.lightGray
+                                        Label {
+                                            anchors.fill: parent
+                                            anchors.margins: 6
+                                            text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ")
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    Repeater {
-                        model: plugin.visibleRowCount
+                    ListView {
+                        id: rowList
+                        x: 0
+                        y: plugin.headerHeight
+                        width: parent.width
+                        height: parent.height - plugin.headerHeight
+                        clip: true
+                        spacing: 0
+                        model: plugin.tableFeatures.slice(0, plugin.previewLimit)
 
-                        delegate: Rectangle {
-                            id: tableRow
-                            property var featureObject: plugin.tableFeatures[index]
-                            width: gridColumn.width
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                        delegate: Item {
+                            id: rowDelegate
+                            required property var modelData
+                            required property int index
+                            property var featureObject: modelData
+                            width: rowList.width
                             height: plugin.rowHeight
-                            color: index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
-                            border.color: Theme.lightGray
 
                             FeatureModel {
-                                id: rowFeatureModel
+                                id: rowModel
                                 currentLayer: plugin.selectedLayer
-                                feature: tableRow.featureObject
+                                feature: rowDelegate.featureObject
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: rowDelegate.index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
                             }
 
                             Row {
@@ -319,7 +352,7 @@ Item {
                                     Label {
                                         anchors.fill: parent
                                         anchors.margins: 6
-                                        text: plugin.featureId(tableRow.featureObject)
+                                        text: plugin.featureId(rowDelegate.featureObject)
                                         verticalAlignment: Text.AlignVCenter
                                         horizontalAlignment: Text.AlignHCenter
                                         elide: Text.ElideRight
@@ -327,7 +360,7 @@ Item {
                                 }
 
                                 Repeater {
-                                    model: rowFeatureModel
+                                    model: rowModel
                                     delegate: Rectangle {
                                         width: plugin.dataColumnWidth
                                         height: plugin.rowHeight

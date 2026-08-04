@@ -1,4 +1,4 @@
-QField Table v0.3.1
+QField Table v0.3.2
 
 Correctif de la première grille tabulaire.
 
