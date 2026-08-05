@@ -1,5 +1,5 @@
 name=QField Table
-version=0.5.0
+version=0.5.1
 description=Read-only attribute table with global search and row selection
 qfieldMinimumVersion=4.0.0
 author=Dominic Martin

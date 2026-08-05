@@ -27,6 +27,8 @@ Item {
     property var filteredRows: []
     property string diagnosticMessage: ""
     property string selectedFeatureId: ""
+    property int frozenColumnCount: 2
+    property real horizontalOffset: 0
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -71,12 +73,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.0 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.0 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -102,6 +104,7 @@ Item {
         flatRows = []
         filteredRows = []
         selectedFeatureId = ""
+        horizontalOffset = 0
         diagnosticMessage = ""
         if (searchField) searchField.text = ""
     }
@@ -121,7 +124,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.0 iterator: " + error)
+            console.log("QField Table v0.5.1 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -168,7 +171,8 @@ Item {
             "alias": aliasText,
             "fieldName": technicalName,
             "fieldIndex": indexValue,
-            "sampleValue": formatValue(sampleValue)
+            "sampleValue": formatValue(sampleValue),
+            "width": 160
         })
         columns = next
         rowBuildTimer.restart()
@@ -195,6 +199,29 @@ Item {
         return ""
     }
 
+    function estimatedWidth(text) {
+        var length = String(text === undefined || text === null ? "" : text).length
+        return Math.max(110, Math.min(300, 34 + Math.min(length, 38) * 7.2))
+    }
+
+    function optimizeColumnWidths(rows) {
+        var updated = []
+        for (var c = 0; c < columns.length; ++c) {
+            var col = columns[c]
+            var width = estimatedWidth(col.alias || col.fieldName || qsTr("Champ"))
+            for (var r = 0; r < rows.length; ++r)
+                width = Math.max(width, estimatedWidth(rows[r].values[c]))
+            updated.push({
+                "alias": col.alias,
+                "fieldName": col.fieldName,
+                "fieldIndex": col.fieldIndex,
+                "sampleValue": col.sampleValue,
+                "width": width
+            })
+        }
+        columns = updated
+    }
+
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
         var result = []
@@ -205,8 +232,28 @@ Item {
                 values.push(readAttribute(feature, columns[c]))
             result.push({ "featureId": featureId(feature), "values": values })
         }
+        optimizeColumnWidths(result)
+        horizontalOffset = 0
         flatRows = result
         applySearch()
+    }
+
+    function frozenWidth() {
+        var total = 90
+        var count = Math.min(frozenColumnCount, columns.length)
+        for (var i = 0; i < count; ++i) total += columns[i].width
+        return total
+    }
+
+    function scrollingWidth() {
+        var total = 0
+        for (var i = Math.min(frozenColumnCount, columns.length); i < columns.length; ++i)
+            total += columns[i].width
+        return total
+    }
+
+    function maxHorizontalOffset(viewportWidth) {
+        return Math.max(0, scrollingWidth() - Math.max(0, viewportWidth))
     }
 
     function applySearch() {
@@ -240,7 +287,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.0 chargé")
+        console.log("QField Table v0.5.1 chargé")
     }
 
     Connections {
@@ -305,7 +352,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.0")
+        title: qsTr("QField Table — v0.5.1")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1500)
         height: Math.min(parent ? parent.height - 24 : 750, 980)
@@ -394,29 +441,26 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
 
-            Flickable {
-                id: tableFlick
+            // En-tête fixe : il ne défile jamais verticalement.
+            Item {
+                id: fixedHeader
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.preferredHeight: 58
                 clip: true
-                contentWidth: tableContent.width
-                contentHeight: tableContent.height
-                boundsBehavior: Flickable.StopAtBounds
-                flickableDirection: Flickable.HorizontalAndVerticalFlick
-                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AlwaysOn }
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
 
-                Column {
-                    id: tableContent
-                    property int idWidth: 90
-                    property int cellWidth: 190
-                    width: idWidth + plugin.columns.length * cellWidth
-                    spacing: 0
+                Rectangle { anchors.fill: parent; color: "#f8f8f8" }
+
+                Row {
+                    anchors.fill: parent
 
                     Row {
+                        id: frozenHeaderRow
+                        width: plugin.frozenWidth()
+                        height: parent.height
+
                         Rectangle {
-                            width: tableContent.idWidth
-                            height: 54
+                            width: 90
+                            height: parent.height
                             border.width: 1
                             border.color: Theme.lightGray
                             color: "#f8f8f8"
@@ -428,12 +472,14 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
+
                         Repeater {
-                            model: plugin.columns
+                            model: Math.min(plugin.frozenColumnCount, plugin.columns.length)
                             delegate: Rectangle {
-                                required property var modelData
-                                width: tableContent.cellWidth
-                                height: 54
+                                required property int index
+                                property var columnData: plugin.columns[index]
+                                width: columnData ? columnData.width : 140
+                                height: frozenHeaderRow.height
                                 border.width: 1
                                 border.color: Theme.lightGray
                                 color: "#f8f8f8"
@@ -442,25 +488,75 @@ Item {
                                     anchors.margins: 6
                                     font.bold: true
                                     wrapMode: Text.WordWrap
-                                    text: modelData.alias || modelData.fieldName || qsTr("Champ")
+                                    text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ")) : ""
                                 }
-                                ToolTip.visible: headerMouse.containsMouse
-                                ToolTip.text: modelData.fieldName || ""
-                                MouseArea {
-                                    id: headerMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
+                                ToolTip.visible: frozenHeaderMouse.containsMouse
+                                ToolTip.text: columnData ? columnData.fieldName : ""
+                                MouseArea { id: frozenHeaderMouse; anchors.fill: parent; hoverEnabled: true }
+                            }
+                        }
+                    }
+
+                    Item {
+                        id: scrollingHeaderViewport
+                        width: Math.max(0, fixedHeader.width - frozenHeaderRow.width)
+                        height: parent.height
+                        clip: true
+
+                        Row {
+                            x: -plugin.horizontalOffset
+                            height: parent.height
+                            Repeater {
+                                model: Math.max(0, plugin.columns.length - plugin.frozenColumnCount)
+                                delegate: Rectangle {
+                                    required property int index
+                                    property int actualIndex: index + plugin.frozenColumnCount
+                                    property var columnData: plugin.columns[actualIndex]
+                                    width: columnData ? columnData.width : 140
+                                    height: scrollingHeaderViewport.height
+                                    border.width: 1
+                                    border.color: Theme.lightGray
+                                    color: "#f8f8f8"
+                                    Label {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        font.bold: true
+                                        wrapMode: Text.WordWrap
+                                        text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ")) : ""
+                                    }
+                                    ToolTip.visible: scrollingHeaderMouse.containsMouse
+                                    ToolTip.text: columnData ? columnData.fieldName : ""
+                                    MouseArea { id: scrollingHeaderMouse; anchors.fill: parent; hoverEnabled: true }
                                 }
                             }
                         }
                     }
+                }
+            }
+
+            // Le corps ne défile que verticalement. La partie droite est déplacée
+            // horizontalement par le curseur commun à l'en-tête et aux lignes.
+            Flickable {
+                id: bodyFlick
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: width
+                contentHeight: rowsColumn.height
+                flickableDirection: Flickable.VerticalFlick
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+
+                Column {
+                    id: rowsColumn
+                    width: bodyFlick.width
 
                     Repeater {
                         model: plugin.filteredRows
                         delegate: Item {
                             required property var modelData
                             required property int index
-                            width: tableContent.width
+                            width: rowsColumn.width
                             height: 40
 
                             Rectangle {
@@ -473,34 +569,75 @@ Item {
 
                             Row {
                                 anchors.fill: parent
-                                Rectangle {
-                                    width: tableContent.idWidth
-                                    height: 40
-                                    border.width: 1
-                                    border.color: Theme.lightGray
-                                    color: "transparent"
-                                    Label {
-                                        anchors.fill: parent
-                                        anchors.margins: 6
-                                        text: modelData.featureId
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                                Repeater {
-                                    model: plugin.columns.length
-                                    delegate: Rectangle {
-                                        required property int index
-                                        width: tableContent.cellWidth
-                                        height: 40
+
+                                Row {
+                                    id: frozenCellsRow
+                                    width: plugin.frozenWidth()
+                                    height: parent.height
+
+                                    Rectangle {
+                                        width: 90
+                                        height: parent.height
                                         border.width: 1
                                         border.color: Theme.lightGray
                                         color: "transparent"
                                         Label {
                                             anchors.fill: parent
                                             anchors.margins: 6
-                                            elide: Text.ElideRight
+                                            text: modelData.featureId
                                             verticalAlignment: Text.AlignVCenter
-                                            text: modelData.values[index] !== undefined ? modelData.values[index] : ""
+                                        }
+                                    }
+
+                                    Repeater {
+                                        model: Math.min(plugin.frozenColumnCount, plugin.columns.length)
+                                        delegate: Rectangle {
+                                            required property int index
+                                            property var columnData: plugin.columns[index]
+                                            width: columnData ? columnData.width : 140
+                                            height: frozenCellsRow.height
+                                            border.width: 1
+                                            border.color: Theme.lightGray
+                                            color: "transparent"
+                                            Label {
+                                                anchors.fill: parent
+                                                anchors.margins: 6
+                                                elide: Text.ElideRight
+                                                verticalAlignment: Text.AlignVCenter
+                                                text: modelData.values[index] !== undefined ? modelData.values[index] : ""
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Item {
+                                    id: scrollingCellsViewport
+                                    width: Math.max(0, rowsColumn.width - frozenCellsRow.width)
+                                    height: parent.height
+                                    clip: true
+
+                                    Row {
+                                        x: -plugin.horizontalOffset
+                                        height: parent.height
+                                        Repeater {
+                                            model: Math.max(0, plugin.columns.length - plugin.frozenColumnCount)
+                                            delegate: Rectangle {
+                                                required property int index
+                                                property int actualIndex: index + plugin.frozenColumnCount
+                                                property var columnData: plugin.columns[actualIndex]
+                                                width: columnData ? columnData.width : 140
+                                                height: scrollingCellsViewport.height
+                                                border.width: 1
+                                                border.color: Theme.lightGray
+                                                color: "transparent"
+                                                Label {
+                                                    anchors.fill: parent
+                                                    anchors.margins: 6
+                                                    elide: Text.ElideRight
+                                                    verticalAlignment: Text.AlignVCenter
+                                                    text: modelData.values[actualIndex] !== undefined ? modelData.values[actualIndex] : ""
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -511,6 +648,25 @@ Item {
                                 onClicked: plugin.selectedFeatureId = String(modelData.featureId)
                             }
                         }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: plugin.columns.length > plugin.frozenColumnCount
+
+                Label { text: qsTr("Colonnes") }
+                Slider {
+                    id: horizontalSlider
+                    Layout.fillWidth: true
+                    from: 0
+                    to: plugin.maxHorizontalOffset(scrollingHeaderViewport.width)
+                    value: Math.min(plugin.horizontalOffset, to)
+                    enabled: to > 0
+                    onMoved: plugin.horizontalOffset = value
+                    onToChanged: {
+                        if (plugin.horizontalOffset > to) plugin.horizontalOffset = to
                     }
                 }
             }
