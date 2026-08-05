@@ -71,12 +71,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.4.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.4.2 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.4.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.4.2 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -119,7 +119,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.4.1 iterator: " + error)
+            console.log("QField Table v0.4.2 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); test sur les %3 premières entités")
@@ -216,7 +216,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.4.1 chargé")
+        console.log("QField Table v0.4.2 chargé")
     }
 
     Connections {
@@ -229,10 +229,39 @@ Item {
         interval: 120
         repeat: false
         onTriggered: {
-            // Force la reconstruction du FeatureModel de référence après le changement de couche.
+            // La modification des propriétés currentLayer et feature suffit à
+            // reconstruire le FeatureModel. La méthode refresh() n'est pas
+            // disponible dans toutes les versions de QField.
             columns = []
             flatRows = []
-            if (referenceFeatureModel) referenceFeatureModel.refresh()
+            schemaPollTimer.restart()
+        }
+    }
+
+    Timer {
+        id: schemaPollTimer
+        interval: 250
+        repeat: true
+        running: false
+        property int attempts: 0
+        onTriggered: {
+            attempts++
+            // Les délégués du Repeater enregistrent les colonnes dès que le
+            // modèle devient disponible. On attend seulement leur création.
+            if (plugin.columns.length > 0) {
+                stop()
+                attempts = 0
+                rowBuildTimer.restart()
+            } else if (attempts >= 20) {
+                stop()
+                attempts = 0
+                plugin.diagnosticMessage = qsTr("Le FeatureModel n'a exposé aucun attribut après 5 secondes.")
+            }
+        }
+        function restart() {
+            stop()
+            attempts = 0
+            start()
         }
     }
 
@@ -258,7 +287,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — diagnostic v0.4.1")
+        title: qsTr("QField Table — diagnostic v0.4.2")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1450)
         height: Math.min(parent ? parent.height - 24 : 750, 950)
@@ -315,10 +344,6 @@ Item {
                     id: referenceFeatureModel
                     currentLayer: plugin.selectedLayer
                     feature: referenceFrame.referenceFeature
-                    onCountChanged: {
-                        plugin.expectedColumnCount = count
-                        rowBuildTimer.restart()
-                    }
                 }
 
                 RowLayout {
@@ -471,7 +496,7 @@ Item {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
                 opacity: 0.75
-                text: qsTr("Cette version vérifie uniquement feature.attribute(nomTechnique) à partir du schéma obtenu comme dans la v0.2.")
+                text: qsTr("Version 0.4.2 : même lecture visible que la v0.2, sans gestionnaire de signal non exposé.")
             }
         }
     }
