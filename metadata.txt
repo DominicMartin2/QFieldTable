@@ -1,6 +1,4 @@
-[general]
 name=QField Table
-description=Consultation tabulaire en lecture seule des couches vectorielles
-version=0.4.0
-author=Dominic Martin
+version=0.4.1
+description=Diagnostic: schema from the first visible FeatureModel, row values read directly from QgsFeature
 qfieldMinimumVersion=4.0.0

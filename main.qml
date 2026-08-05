@@ -16,18 +16,17 @@ Item {
 
     property var vectorLayers: []
     property var selectedLayer: null
-    property var sourceFeatures: []
-    property var flatRows: []
-    property var columnNames: []
-
-    property int totalFeatureCount: 0
+    property var previewFeatures: []
     property int previewLimit: 10
-    property int displayColumnLimit: 12
-    property int receivedCells: 0
-    property int completedRows: 0
-    property int collectionGeneration: 0
-    property bool collectionActive: false
+    property int totalFeatureCount: 0
+
+    // [{ alias, fieldName, fieldIndex, sampleValue }]
+    property var columns: []
+    // [{ featureId, values: [] }]
+    property var flatRows: []
     property string diagnosticMessage: ""
+    property int expectedColumnCount: 0
+    property int displayedColumnLimit: 12
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -60,7 +59,7 @@ Item {
     function refreshLayers() {
         vectorLayers = []
         layerModel.clear()
-        resetCollection()
+        resetData()
         var seen = ({})
 
         try {
@@ -72,14 +71,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.4.0 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.4.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
-            if (canvasLayers) {
-                for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-            }
-        } catch (e2) { console.log("QField Table v0.4.0 canvas layers: " + e2) }
+            if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
+        } catch (e2) { console.log("QField Table v0.4.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -95,38 +92,20 @@ Item {
     function selectLayer(index) {
         if (index < 0 || index >= vectorLayers.length) return
         selectedLayer = vectorLayers[index]
-        loadFeatures()
+        inspectSelectedLayer()
     }
 
-    function featureId(feature) {
-        if (!feature) return "?"
-        try { return String(typeof feature.id === "function" ? feature.id() : feature.id) }
-        catch (e) { return "?" }
-    }
-
-    function formatValue(value) {
-        if (value === null || value === undefined) return ""
-        var text = String(value)
-        if (text === "Invalid Date" || text === "NULL" || text === "undefined") return ""
-        if (text === "\"\"") return ""
-        return text
-    }
-
-    function resetCollection() {
-        collectionGeneration++
-        collectionActive = false
-        sourceFeatures = []
-        flatRows = []
-        columnNames = []
-        receivedCells = 0
-        completedRows = 0
-        diagnosticMessage = ""
-        diagnosticSummary.text = qsTr("En attente de la lecture...")
-    }
-
-    function loadFeatures() {
-        resetCollection()
+    function resetData() {
+        previewFeatures = []
         totalFeatureCount = 0
+        columns = []
+        flatRows = []
+        expectedColumnCount = 0
+        diagnosticMessage = ""
+    }
+
+    function inspectSelectedLayer() {
+        resetData()
         if (!selectedLayer) return
 
         var found = []
@@ -137,79 +116,97 @@ Item {
                 totalFeatureCount++
                 if (found.length < previewLimit) found.push(feature)
             }
-            sourceFeatures = found
-            collectionActive = found.length > 0
+            previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.4.0: " + error)
+            console.log("QField Table v0.4.1 iterator: " + error)
         }
 
-        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); lecture des %3 premières lignes")
-                .arg(layerName(selectedLayer)).arg(totalFeatureCount).arg(sourceFeatures.length)
-        settleTimer.restart()
+        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); test sur les %3 premières entités")
+                .arg(layerName(selectedLayer)).arg(totalFeatureCount).arg(previewFeatures.length)
+        schemaBuildTimer.restart()
     }
 
-    function registerCell(generation, rowIndex, columnIndex, attributeName, attributeValue, rowFieldCount) {
-        if (generation !== collectionGeneration) return
-        if (rowIndex < 0 || rowIndex >= sourceFeatures.length) return
-
-        var rows = flatRows.slice(0)
-        var row = rows[rowIndex]
-        if (!row) {
-            row = {
-                "fid": featureId(sourceFeatures[rowIndex]),
-                "values": [],
-                "receivedMap": ({}),
-                "received": 0,
-                "fieldCount": rowFieldCount
-            }
-        }
-
-        var values = row.values.slice(0)
-        var receivedMap = row.receivedMap || ({})
-        if (!receivedMap[columnIndex]) {
-            receivedMap[columnIndex] = true
-            row.received++
-            receivedCells++
-        }
-        values[columnIndex] = formatValue(attributeValue)
-        row.values = values
-        row.receivedMap = receivedMap
-        row.fieldCount = Math.max(row.fieldCount || 0, rowFieldCount || 0)
-        rows[rowIndex] = row
-        flatRows = rows
-
-        if (rowIndex === 0) {
-            var names = columnNames.slice(0)
-            names[columnIndex] = String(attributeName !== undefined ? attributeName : ("champ_" + columnIndex))
-            columnNames = names
-        }
-
-        updateCompletedRows(rows)
-        settleTimer.restart()
+    function featureId(feature) {
+        if (!feature) return "?"
+        try { return String(typeof feature.id === "function" ? feature.id() : feature.id) }
+        catch (e) { return "?" }
     }
 
-    function updateCompletedRows(rows) {
-        var done = 0
-        for (var i = 0; i < rows.length; ++i) {
-            var row = rows[i]
-            if (row && row.fieldCount > 0 && row.received >= row.fieldCount) done++
-        }
-        completedRows = done
+    function formatValue(value) {
+        if (value === null || value === undefined) return "∅"
+        var text = String(value)
+        return text.length === 0 ? "\"\"" : text
     }
 
-    function finaliseDiagnostic() {
-        var prepared = 0
-        for (var i = 0; i < flatRows.length; ++i) {
-            if (flatRows[i] && flatRows[i].values) prepared += flatRows[i].values.length
+    function fieldObjectName(fieldObject) {
+        if (fieldObject === null || fieldObject === undefined) return ""
+        try {
+            if (typeof fieldObject.name === "function") return String(fieldObject.name())
+            if (fieldObject.name !== undefined) return String(fieldObject.name)
+        } catch (e) {}
+        return ""
+    }
+
+    function registerColumn(aliasValue, fieldObject, fieldIndexValue, sampleValue) {
+        var aliasText = aliasValue === undefined ? "" : String(aliasValue)
+        var technicalName = fieldObjectName(fieldObject)
+        var indexValue = -1
+        if (fieldIndexValue !== undefined && fieldIndexValue !== null && !isNaN(Number(fieldIndexValue)))
+            indexValue = Number(fieldIndexValue)
+
+        // Évite les doublons lorsque le Repeater est reconstruit.
+        for (var i = 0; i < columns.length; ++i) {
+            if ((technicalName.length > 0 && columns[i].fieldName === technicalName) ||
+                    (technicalName.length === 0 && columns[i].alias === aliasText && columns[i].fieldIndex === indexValue))
+                return
         }
-        diagnosticSummary.text = qsTr("%1 ligne(s) chargée(s) — %2 colonne(s) détectée(s) — %3 cellule(s) préparée(s) — %4/%5 lignes complètes")
-                .arg(flatRows.length)
-                .arg(columnNames.length)
-                .arg(prepared)
-                .arg(completedRows)
-                .arg(sourceFeatures.length)
-        collectionActive = false
+
+        var next = columns.slice(0)
+        next.push({
+            "alias": aliasText,
+            "fieldName": technicalName,
+            "fieldIndex": indexValue,
+            "sampleValue": formatValue(sampleValue)
+        })
+        columns = next
+        rowBuildTimer.restart()
+    }
+
+    function readAttribute(feature, column) {
+        if (!feature || !column) return "∅"
+        var value
+
+        // Test principal demandé : QgsFeature.attribute(nom technique).
+        if (column.fieldName && column.fieldName.length > 0) {
+            try {
+                value = feature.attribute(column.fieldName)
+                if (value !== undefined) return formatValue(value)
+            } catch (e1) {}
+        }
+
+        // Diagnostic de secours : surcharge par index, si elle est exposée dans cette version.
+        if (column.fieldIndex >= 0) {
+            try {
+                value = feature.attribute(column.fieldIndex)
+                if (value !== undefined) return formatValue(value)
+            } catch (e2) {}
+        }
+
+        return "⚠ indisponible"
+    }
+
+    function buildRows() {
+        if (columns.length === 0 || previewFeatures.length === 0) return
+        var result = []
+        for (var r = 0; r < previewFeatures.length; ++r) {
+            var feature = previewFeatures[r]
+            var values = []
+            for (var c = 0; c < columns.length; ++c)
+                values.push(readAttribute(feature, columns[c]))
+            result.push({ "featureId": featureId(feature), "values": values })
+        }
+        flatRows = result
     }
 
     function openBrowser() {
@@ -219,7 +216,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.4.0 chargé")
+        console.log("QField Table v0.4.1 chargé")
     }
 
     Connections {
@@ -228,10 +225,22 @@ Item {
     }
 
     Timer {
-        id: settleTimer
-        interval: 700
+        id: schemaBuildTimer
+        interval: 120
         repeat: false
-        onTriggered: plugin.finaliseDiagnostic()
+        onTriggered: {
+            // Force la reconstruction du FeatureModel de référence après le changement de couche.
+            columns = []
+            flatRows = []
+            if (referenceFeatureModel) referenceFeatureModel.refresh()
+        }
+    }
+
+    Timer {
+        id: rowBuildTimer
+        interval: 180
+        repeat: false
+        onTriggered: plugin.buildRows()
     }
 
     ListModel { id: layerModel }
@@ -249,15 +258,15 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.4.0")
+        title: qsTr("QField Table — diagnostic v0.4.1")
         standardButtons: Dialog.Close
-        width: Math.min(parent ? parent.width - 20 : 900, 1450)
-        height: Math.min(parent ? parent.height - 20 : 720, 950)
+        width: Math.min(parent ? parent.width - 24 : 900, 1450)
+        height: Math.min(parent ? parent.height - 24 : 750, 950)
         x: parent ? (parent.width - width) / 2 : 0
         y: parent ? (parent.height - height) / 2 : 0
 
         contentItem: ColumnLayout {
-            spacing: 8
+            spacing: 7
 
             RowLayout {
                 Layout.fillWidth: true
@@ -272,27 +281,14 @@ Item {
                 Button { text: qsTr("Actualiser"); onClicked: plugin.refreshLayers() }
             }
 
-            Label {
-                id: statusLabel
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: qsTr("Sélectionnez une couche.")
-            }
+            Label { id: statusLabel; Layout.fillWidth: true; wrapMode: Text.WordWrap }
 
             Label {
-                id: diagnosticSummary
                 Layout.fillWidth: true
                 font.bold: true
-                text: qsTr("En attente de la lecture...")
                 wrapMode: Text.WordWrap
-            }
-
-            ProgressBar {
-                Layout.fillWidth: true
-                from: 0
-                to: Math.max(1, plugin.sourceFeatures.length * Math.max(1, plugin.columnNames.length))
-                value: plugin.receivedCells
-                indeterminate: plugin.collectionActive && plugin.columnNames.length === 0
+                text: qsTr("FeatureModel de référence : %1 attribut(s) — Colonnes enregistrées : %2 — Lignes construites : %3")
+                        .arg(referenceFeatureModel.count).arg(plugin.columns.length).arg(plugin.flatRows.length)
             }
 
             Label {
@@ -305,100 +301,137 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
 
-            // Collecteur indépendant de la mise en page. Instantiator crée tous les
-            // délégués, même s'ils ne sont pas visibles à l'écran.
-            Instantiator {
-                id: rowCollector
-                model: plugin.sourceFeatures
+            // Même mécanisme que la v0.2 : FeatureModel directement attaché à la
+            // première entité, avec un Repeater réellement visible.
+            Frame {
+                id: referenceFrame
+                Layout.fillWidth: true
+                Layout.preferredHeight: 76
+                visible: plugin.previewFeatures.length > 0
 
-                delegate: Item {
-                    id: rowCollectorDelegate
-                    required property var modelData
-                    required property int index
-                    property int rowIndex: index
-                    property int generation: plugin.collectionGeneration
-                    width: 0
-                    height: 0
+                property var referenceFeature: plugin.previewFeatures.length > 0 ? plugin.previewFeatures[0] : null
 
-                    FeatureModel {
-                        id: featureAttributeModel
-                        currentLayer: plugin.selectedLayer
-                        feature: rowCollectorDelegate.modelData
+                FeatureModel {
+                    id: referenceFeatureModel
+                    currentLayer: plugin.selectedLayer
+                    feature: referenceFrame.referenceFeature
+                    onCountChanged: {
+                        plugin.expectedColumnCount = count
+                        rowBuildTimer.restart()
+                    }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 6
+
+                    Label {
+                        Layout.preferredWidth: 180
+                        font.bold: true
+                        text: qsTr("Entité de référence : %1").arg(plugin.featureId(referenceFrame.referenceFeature))
                     }
 
-                    Instantiator {
-                        model: featureAttributeModel
-                        delegate: Item {
-                            required property int index
-                            width: 0
-                            height: 0
-                            Component.onCompleted: plugin.registerCell(
-                                rowCollectorDelegate.generation,
-                                rowCollectorDelegate.rowIndex,
-                                index,
-                                model.AttributeName !== undefined ? model.AttributeName : ("champ_" + index),
-                                model.AttributeValue,
-                                featureAttributeModel.count
-                            )
+                    ListView {
+                        id: visibleSchemaList
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        orientation: ListView.Horizontal
+                        clip: true
+                        spacing: 4
+                        model: referenceFeatureModel
+
+                        delegate: Rectangle {
+                            width: 210
+                            height: visibleSchemaList.height
+                            border.width: 1
+                            border.color: Theme.lightGray
+                            color: "transparent"
+
+                            // Les rôles supplémentaires sont testés ici.
+                            property var roleField: model.Field !== undefined ? model.Field : null
+                            property var roleIndex: model.FieldIndex !== undefined ? model.FieldIndex : index
+
+                            Component.onCompleted: plugin.registerColumn(
+                                                       model.AttributeName,
+                                                       roleField,
+                                                       roleIndex,
+                                                       model.AttributeValue)
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                spacing: 1
+                                Label {
+                                    width: parent.width
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                    text: model.AttributeName !== undefined ? String(model.AttributeName) : qsTr("Champ")
+                                }
+                                Label {
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    text: {
+                                        var n = plugin.fieldObjectName(parent.parent.roleField)
+                                        return n.length > 0 ? qsTr("nom: %1").arg(n) : qsTr("nom technique non exposé")
+                                    }
+                                }
+                                Label {
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    text: qsTr("valeur: %1").arg(plugin.formatValue(model.AttributeValue))
+                                }
+                            }
                         }
+
+                        ScrollBar.horizontal: ScrollBar { }
                     }
                 }
             }
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Aperçu aplati : identifiant + %1 premières colonnes")
-                    .arg(Math.min(plugin.displayColumnLimit, plugin.columnNames.length))
                 font.bold: true
+                text: qsTr("Aperçu : identifiant + %1 premières colonnes").arg(Math.min(plugin.displayedColumnLimit, plugin.columns.length))
             }
 
             Flickable {
-                id: flatFlick
+                id: tableFlick
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                contentWidth: flatTable.width
-                contentHeight: flatTable.height
-                flickableDirection: Flickable.HorizontalAndVerticalFlick
+                contentWidth: tableContent.width
+                contentHeight: tableContent.height
                 boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.HorizontalAndVerticalFlick
                 ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AlwaysOn }
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 Column {
-                    id: flatTable
-                    width: 110 + Math.max(1, Math.min(plugin.displayColumnLimit, plugin.columnNames.length)) * 190
+                    id: tableContent
+                    property int shownColumns: Math.min(plugin.displayedColumnLimit, plugin.columns.length)
+                    property int idWidth: 100
+                    property int cellWidth: 190
+                    width: idWidth + shownColumns * cellWidth
+                    spacing: 0
 
                     Row {
                         Rectangle {
-                            width: 110
-                            height: 54
-                            border.color: Theme.lightGray
-                            color: Theme.mainBackgroundColor
-                            Label {
-                                anchors.fill: parent
-                                anchors.margins: 6
-                                text: qsTr("Entité")
-                                font.bold: true
-                                verticalAlignment: Text.AlignVCenter
-                            }
+                            width: tableContent.idWidth; height: 54
+                            border.width: 1; border.color: Theme.lightGray
+                            Label { anchors.fill: parent; anchors.margins: 6; font.bold: true; text: qsTr("Entité"); verticalAlignment: Text.AlignVCenter }
                         }
                         Repeater {
-                            model: plugin.columnNames.slice(0, plugin.displayColumnLimit)
+                            model: tableContent.shownColumns
                             delegate: Rectangle {
-                                required property var modelData
-                                width: 190
-                                height: 54
-                                border.color: Theme.lightGray
-                                color: Theme.mainBackgroundColor
+                                required property int index
+                                width: tableContent.cellWidth; height: 54
+                                border.width: 1; border.color: Theme.lightGray
                                 Label {
-                                    anchors.fill: parent
-                                    anchors.margins: 6
-                                    text: String(modelData)
-                                    font.bold: true
-                                    wrapMode: Text.WordWrap
-                                    maximumLineCount: 2
-                                    elide: Text.ElideRight
-                                    verticalAlignment: Text.AlignVCenter
+                                    anchors.fill: parent; anchors.margins: 6
+                                    font.bold: true; wrapMode: Text.WordWrap
+                                    text: plugin.columns[index] ?
+                                              ((plugin.columns[index].alias || qsTr("Champ")) +
+                                               (plugin.columns[index].fieldName ? "\n[" + plugin.columns[index].fieldName + "]" : "")) : ""
                                 }
                             }
                         }
@@ -407,38 +440,25 @@ Item {
                     Repeater {
                         model: plugin.flatRows
                         delegate: Row {
-                            id: flatRow
                             required property var modelData
                             required property int index
-
                             Rectangle {
-                                width: 110
-                                height: 38
-                                border.color: Theme.lightGray
-                                color: flatRow.index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
-                                Label {
-                                    anchors.fill: parent
-                                    anchors.margins: 6
-                                    text: modelData ? modelData.fid : ""
-                                    verticalAlignment: Text.AlignVCenter
-                                }
+                                width: tableContent.idWidth; height: 40
+                                border.width: 1; border.color: Theme.lightGray
+                                color: index % 2 ? "#f4f4f4" : "transparent"
+                                Label { anchors.fill: parent; anchors.margins: 6; text: modelData.featureId; verticalAlignment: Text.AlignVCenter }
                             }
                             Repeater {
-                                model: modelData && modelData.values
-                                    ? modelData.values.slice(0, plugin.displayColumnLimit)
-                                    : []
+                                model: tableContent.shownColumns
                                 delegate: Rectangle {
-                                    required property var modelData
-                                    width: 190
-                                    height: 38
-                                    border.color: Theme.lightGray
-                                    color: flatRow.index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
+                                    required property int index
+                                    width: tableContent.cellWidth; height: 40
+                                    border.width: 1; border.color: Theme.lightGray
+                                    color: parent.parent.index % 2 ? "#f4f4f4" : "transparent"
                                     Label {
-                                        anchors.fill: parent
-                                        anchors.margins: 6
-                                        text: String(modelData)
-                                        elide: Text.ElideRight
-                                        verticalAlignment: Text.AlignVCenter
+                                        anchors.fill: parent; anchors.margins: 6
+                                        elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+                                        text: modelData.values[index] !== undefined ? modelData.values[index] : "∅"
                                     }
                                 }
                             }
@@ -449,10 +469,9 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Version 0.4.0 : collecte avec Instantiator, puis affichage à partir d'un modèle JavaScript aplati.")
-                opacity: 0.7
                 horizontalAlignment: Text.AlignRight
-                wrapMode: Text.WordWrap
+                opacity: 0.75
+                text: qsTr("Cette version vérifie uniquement feature.attribute(nomTechnique) à partir du schéma obtenu comme dans la v0.2.")
             }
         }
     }
