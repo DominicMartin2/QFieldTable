@@ -1,7 +1,6 @@
 [general]
 name=QField Table
-description=Consultation tabulaire en lecture seule des attributs d'une couche dans QField.
-version=0.3.4
+description=Consultation tabulaire des attributs dans QField - version 0.3.5
 author=Dominic Martin
-homepage=https://github.com/DominicMartin2/QFieldTable
+version=0.3.5
 icon=icon.svg
