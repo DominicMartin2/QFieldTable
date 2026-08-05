@@ -71,12 +71,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.4.2 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.4.3 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.4.2 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.4.3 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -119,7 +119,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.4.2 iterator: " + error)
+            console.log("QField Table v0.4.3 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); test sur les %3 premières entités")
@@ -216,7 +216,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.4.2 chargé")
+        console.log("QField Table v0.4.3 chargé")
     }
 
     Connections {
@@ -229,11 +229,9 @@ Item {
         interval: 120
         repeat: false
         onTriggered: {
-            // La modification des propriétés currentLayer et feature suffit à
-            // reconstruire le FeatureModel. La méthode refresh() n'est pas
-            // disponible dans toutes les versions de QField.
-            columns = []
-            flatRows = []
+            // resetData() a déjà vidé les anciennes données avant l'affectation
+            // de l'entité de référence. Il ne faut surtout pas effacer ici les
+            // colonnes que les délégués visibles viennent d'enregistrer.
             schemaPollTimer.restart()
         }
     }
@@ -287,7 +285,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — diagnostic v0.4.2")
+        title: qsTr("QField Table — diagnostic v0.4.3")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1450)
         height: Math.min(parent ? parent.height - 24 : 750, 950)
@@ -496,7 +494,7 @@ Item {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
                 opacity: 0.75
-                text: qsTr("Version 0.4.2 : même lecture visible que la v0.2, sans gestionnaire de signal non exposé.")
+                text: qsTr("Version 0.4.3 : conservation des colonnes enregistrées avant la minuterie de validation.")
             }
         }
     }
