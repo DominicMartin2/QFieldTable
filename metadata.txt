@@ -1,5 +1,5 @@
 name=QField Table
-version=0.4.3
-description=Diagnostic: schema from the first visible FeatureModel, row values read directly from QgsFeature
+version=0.5.0
+description=Read-only attribute table with global search and row selection
 qfieldMinimumVersion=4.0.0
 author=Dominic Martin
