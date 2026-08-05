@@ -29,6 +29,11 @@ Item {
     property string selectedFeatureId: ""
     property int frozenColumnCount: 2
     property real horizontalOffset: 0
+    property int sortColumn: -1
+    property bool sortAscending: true
+    property int filterColumn: -1
+    property string filterMode: "contains"
+    property string filterText: ""
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -73,12 +78,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.2 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.2 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -106,7 +111,13 @@ Item {
         selectedFeatureId = ""
         horizontalOffset = 0
         diagnosticMessage = ""
+        sortColumn = -1
+        sortAscending = true
+        filterColumn = -1
+        filterMode = "contains"
+        filterText = ""
         if (searchField) searchField.text = ""
+        if (columnFilterText) columnFilterText.text = ""
     }
 
     function inspectSelectedLayer() {
@@ -124,7 +135,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.1 iterator: " + error)
+            console.log("QField Table v0.5.2 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -235,7 +246,7 @@ Item {
         optimizeColumnWidths(result)
         horizontalOffset = 0
         flatRows = result
-        applySearch()
+        applyView()
     }
 
     function frozenWidth() {
@@ -256,28 +267,79 @@ Item {
         return Math.max(0, scrollingWidth() - Math.max(0, viewportWidth))
     }
 
-    function applySearch() {
-        var term = searchField ? String(searchField.text).toLowerCase().trim() : ""
-        if (term.length === 0) {
-            filteredRows = flatRows.slice(0)
-            return
-        }
+    function valueIsEmpty(value) {
+        if (value === null || value === undefined) return true
+        var text = String(value).trim()
+        return text.length === 0 || text === '""' || text === "{}" || text.toLowerCase() === "null"
+    }
 
+    function rowMatchesColumnFilter(row) {
+        if (filterColumn < 0 || filterColumn >= columns.length) return true
+        var value = row.values[filterColumn]
+        var text = String(value === undefined || value === null ? "" : value)
+        var needle = String(filterText || "").toLowerCase().trim()
+
+        if (filterMode === "empty") return valueIsEmpty(value)
+        if (filterMode === "notempty") return !valueIsEmpty(value)
+        if (filterMode === "equals") return text.toLowerCase() === needle
+        if (needle.length === 0) return true
+        return text.toLowerCase().indexOf(needle) >= 0
+    }
+
+    function compareValues(a, b) {
+        var aText = String(a === undefined || a === null ? "" : a).trim()
+        var bText = String(b === undefined || b === null ? "" : b).trim()
+        var aNum = Number(aText.replace(',', '.'))
+        var bNum = Number(bText.replace(',', '.'))
+        if (aText.length > 0 && bText.length > 0 && !isNaN(aNum) && !isNaN(bNum))
+            return aNum < bNum ? -1 : (aNum > bNum ? 1 : 0)
+        return aText.localeCompare(bText, Qt.locale(), Locale.CompareCaseInsensitive)
+    }
+
+    function applyView() {
+        var term = searchField ? String(searchField.text).toLowerCase().trim() : ""
         var result = []
         for (var r = 0; r < flatRows.length; ++r) {
             var row = flatRows[r]
-            var found = String(row.featureId).toLowerCase().indexOf(term) >= 0
-            if (!found) {
+            var globalMatch = term.length === 0 || String(row.featureId).toLowerCase().indexOf(term) >= 0
+            if (!globalMatch) {
                 for (var c = 0; c < row.values.length; ++c) {
                     if (String(row.values[c]).toLowerCase().indexOf(term) >= 0) {
-                        found = true
+                        globalMatch = true
                         break
                     }
                 }
             }
-            if (found) result.push(row)
+            if (globalMatch && rowMatchesColumnFilter(row)) result.push(row)
+        }
+
+        if (sortColumn >= 0 && sortColumn < columns.length) {
+            var col = sortColumn
+            var asc = sortAscending
+            result.sort(function(a, b) {
+                var cmp = compareValues(a.values[col], b.values[col])
+                if (cmp === 0) cmp = compareValues(a.featureId, b.featureId)
+                return asc ? cmp : -cmp
+            })
         }
         filteredRows = result
+    }
+
+    function toggleSort(columnIndex) {
+        if (sortColumn === columnIndex) sortAscending = !sortAscending
+        else {
+            sortColumn = columnIndex
+            sortAscending = true
+        }
+        applyView()
+    }
+
+    function clearColumnFilter() {
+        filterColumn = -1
+        filterMode = "contains"
+        filterText = ""
+        if (columnFilterText) columnFilterText.text = ""
+        applyView()
     }
 
     function openBrowser() {
@@ -287,7 +349,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.1 chargé")
+        console.log("QField Table v0.5.2 chargé")
     }
 
     Connections {
@@ -334,7 +396,7 @@ Item {
         id: searchTimer
         interval: 250
         repeat: false
-        onTriggered: plugin.applySearch()
+        onTriggered: plugin.applyView()
     }
 
     ListModel { id: layerModel }
@@ -352,7 +414,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.1")
+        title: qsTr("QField Table — v0.5.2")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1500)
         height: Math.min(parent ? parent.height - 24 : 750, 980)
@@ -388,6 +450,44 @@ Item {
                             .arg(plugin.filteredRows.length).arg(plugin.flatRows.length)
                     font.bold: true
                 }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: qsTr("Filtre") ; font.bold: true }
+                ComboBox {
+                    id: filterColumnCombo
+                    Layout.preferredWidth: 300
+                    model: plugin.columns
+                    textRole: "alias"
+                    displayText: plugin.filterColumn >= 0 && plugin.filterColumn < plugin.columns.length
+                                 ? (plugin.columns[plugin.filterColumn].alias || plugin.columns[plugin.filterColumn].fieldName)
+                                 : qsTr("Choisir un champ…")
+                    onActivated: {
+                        plugin.filterColumn = currentIndex
+                        plugin.applyView()
+                    }
+                }
+                ComboBox {
+                    id: filterModeCombo
+                    Layout.preferredWidth: 150
+                    model: [qsTr("Contient"), qsTr("Égale"), qsTr("Est vide"), qsTr("N'est pas vide")]
+                    onActivated: {
+                        plugin.filterMode = currentIndex === 1 ? "equals" : currentIndex === 2 ? "empty" : currentIndex === 3 ? "notempty" : "contains"
+                        plugin.applyView()
+                    }
+                }
+                TextField {
+                    id: columnFilterText
+                    Layout.fillWidth: true
+                    enabled: plugin.filterMode === "contains" || plugin.filterMode === "equals"
+                    placeholderText: qsTr("Valeur à rechercher…")
+                    onTextChanged: {
+                        plugin.filterText = text
+                        searchTimer.restart()
+                    }
+                }
+                Button { text: qsTr("Effacer"); onClicked: plugin.clearColumnFilter() }
             }
 
             Label { id: statusLabel; Layout.fillWidth: true; wrapMode: Text.WordWrap }
@@ -488,11 +588,17 @@ Item {
                                     anchors.margins: 6
                                     font.bold: true
                                     wrapMode: Text.WordWrap
-                                    text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ")) : ""
+                                    text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ"))
+                                                       + (plugin.sortColumn === index ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
                                 }
                                 ToolTip.visible: frozenHeaderMouse.containsMouse
-                                ToolTip.text: columnData ? columnData.fieldName : ""
-                                MouseArea { id: frozenHeaderMouse; anchors.fill: parent; hoverEnabled: true }
+                                ToolTip.text: columnData ? qsTr("%1 — cliquer pour trier").arg(columnData.fieldName) : ""
+                                MouseArea {
+                                    id: frozenHeaderMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: plugin.toggleSort(index)
+                                }
                             }
                         }
                     }
@@ -522,11 +628,17 @@ Item {
                                         anchors.margins: 6
                                         font.bold: true
                                         wrapMode: Text.WordWrap
-                                        text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ")) : ""
+                                        text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ"))
+                                                           + (plugin.sortColumn === actualIndex ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
                                     }
                                     ToolTip.visible: scrollingHeaderMouse.containsMouse
-                                    ToolTip.text: columnData ? columnData.fieldName : ""
-                                    MouseArea { id: scrollingHeaderMouse; anchors.fill: parent; hoverEnabled: true }
+                                    ToolTip.text: columnData ? qsTr("%1 — cliquer pour trier").arg(columnData.fieldName) : ""
+                                    MouseArea {
+                                        id: scrollingHeaderMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: plugin.toggleSort(actualIndex)
+                                    }
                                 }
                             }
                         }

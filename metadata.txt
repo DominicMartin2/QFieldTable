@@ -1,5 +1,5 @@
 name=QField Table
-version=0.5.1
-description=Read-only attribute table with global search and row selection
+version=0.5.2
+description=Read-only attribute table with search, sorting, column filters and frozen columns
 qfieldMinimumVersion=4.0.0
 author=Dominic Martin
