@@ -1,5 +1,6 @@
 [general]
 name=QField Table
-description=Diagnostic de conversion des attributs QField en modèle tabulaire JavaScript
-version=0.3.6
+description=Consultation tabulaire en lecture seule des couches vectorielles
+version=0.4.0
 author=Dominic Martin
+qfieldMinimumVersion=4.0.0

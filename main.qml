@@ -19,14 +19,15 @@ Item {
     property var sourceFeatures: []
     property var flatRows: []
     property var columnNames: []
+
     property int totalFeatureCount: 0
     property int previewLimit: 10
-    property int displayColumnLimit: 8
+    property int displayColumnLimit: 12
     property int receivedCells: 0
-    property int expectedCells: 0
     property int completedRows: 0
+    property int collectionGeneration: 0
+    property bool collectionActive: false
     property string diagnosticMessage: ""
-    property bool collectionStarted: false
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -71,12 +72,14 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.3.6 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.4.0 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
-            if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.3.6 canvas layers: " + e2) }
+            if (canvasLayers) {
+                for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
+            }
+        } catch (e2) { console.log("QField Table v0.4.0 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -104,19 +107,21 @@ Item {
     function formatValue(value) {
         if (value === null || value === undefined) return ""
         var text = String(value)
-        if (text === "Invalid Date" || text === "NULL") return ""
+        if (text === "Invalid Date" || text === "NULL" || text === "undefined") return ""
+        if (text === "\"\"") return ""
         return text
     }
 
     function resetCollection() {
+        collectionGeneration++
+        collectionActive = false
         sourceFeatures = []
         flatRows = []
         columnNames = []
         receivedCells = 0
-        expectedCells = 0
         completedRows = 0
         diagnosticMessage = ""
-        collectionStarted = false
+        diagnosticSummary.text = qsTr("En attente de la lecture...")
     }
 
     function loadFeatures() {
@@ -133,18 +138,19 @@ Item {
                 if (found.length < previewLimit) found.push(feature)
             }
             sourceFeatures = found
-            collectionStarted = true
+            collectionActive = found.length > 0
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.3.6: " + error)
+            console.log("QField Table v0.4.0: " + error)
         }
 
-        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); conversion des %3 premières lignes")
+        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); lecture des %3 premières lignes")
                 .arg(layerName(selectedLayer)).arg(totalFeatureCount).arg(sourceFeatures.length)
-        finalizeTimer.restart()
+        settleTimer.restart()
     }
 
-    function registerCell(rowIndex, columnIndex, attributeName, attributeValue, rowFieldCount) {
+    function registerCell(generation, rowIndex, columnIndex, attributeName, attributeValue, rowFieldCount) {
+        if (generation !== collectionGeneration) return
         if (rowIndex < 0 || rowIndex >= sourceFeatures.length) return
 
         var rows = flatRows.slice(0)
@@ -153,48 +159,57 @@ Item {
             row = {
                 "fid": featureId(sourceFeatures[rowIndex]),
                 "values": [],
+                "receivedMap": ({}),
                 "received": 0,
                 "fieldCount": rowFieldCount
             }
         }
 
         var values = row.values.slice(0)
-        if (values[columnIndex] === undefined) {
+        var receivedMap = row.receivedMap || ({})
+        if (!receivedMap[columnIndex]) {
+            receivedMap[columnIndex] = true
             row.received++
             receivedCells++
         }
         values[columnIndex] = formatValue(attributeValue)
         row.values = values
-        row.fieldCount = rowFieldCount
+        row.receivedMap = receivedMap
+        row.fieldCount = Math.max(row.fieldCount || 0, rowFieldCount || 0)
         rows[rowIndex] = row
         flatRows = rows
 
         if (rowIndex === 0) {
             var names = columnNames.slice(0)
-            names[columnIndex] = String(attributeName)
+            names[columnIndex] = String(attributeName !== undefined ? attributeName : ("champ_" + columnIndex))
             columnNames = names
-            expectedCells = sourceFeatures.length * rowFieldCount
         }
 
-        if (row.received === row.fieldCount) {
-            var done = 0
-            for (var i = 0; i < rows.length; ++i) {
-                if (rows[i] && rows[i].received === rows[i].fieldCount) done++
-            }
-            completedRows = done
-        }
+        updateCompletedRows(rows)
+        settleTimer.restart()
+    }
 
-        finalizeTimer.restart()
+    function updateCompletedRows(rows) {
+        var done = 0
+        for (var i = 0; i < rows.length; ++i) {
+            var row = rows[i]
+            if (row && row.fieldCount > 0 && row.received >= row.fieldCount) done++
+        }
+        completedRows = done
     }
 
     function finaliseDiagnostic() {
-        var cols = columnNames.length
         var prepared = 0
         for (var i = 0; i < flatRows.length; ++i) {
             if (flatRows[i] && flatRows[i].values) prepared += flatRows[i].values.length
         }
         diagnosticSummary.text = qsTr("%1 ligne(s) chargée(s) — %2 colonne(s) détectée(s) — %3 cellule(s) préparée(s) — %4/%5 lignes complètes")
-                .arg(flatRows.length).arg(cols).arg(prepared).arg(completedRows).arg(sourceFeatures.length)
+                .arg(flatRows.length)
+                .arg(columnNames.length)
+                .arg(prepared)
+                .arg(completedRows)
+                .arg(sourceFeatures.length)
+        collectionActive = false
     }
 
     function openBrowser() {
@@ -204,7 +219,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.3.6 chargé")
+        console.log("QField Table v0.4.0 chargé")
     }
 
     Connections {
@@ -213,8 +228,8 @@ Item {
     }
 
     Timer {
-        id: finalizeTimer
-        interval: 350
+        id: settleTimer
+        interval: 700
         repeat: false
         onTriggered: plugin.finaliseDiagnostic()
     }
@@ -234,7 +249,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — diagnostic v0.3.6")
+        title: qsTr("QField Table — v0.4.0")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 20 : 900, 1450)
         height: Math.min(parent ? parent.height - 20 : 720, 950)
@@ -268,16 +283,16 @@ Item {
                 id: diagnosticSummary
                 Layout.fillWidth: true
                 font.bold: true
-                text: qsTr("En attente de la conversion...")
+                text: qsTr("En attente de la lecture...")
                 wrapMode: Text.WordWrap
             }
 
             ProgressBar {
                 Layout.fillWidth: true
                 from: 0
-                to: Math.max(1, plugin.expectedCells)
+                to: Math.max(1, plugin.sourceFeatures.length * Math.max(1, plugin.columnNames.length))
                 value: plugin.receivedCells
-                indeterminate: plugin.collectionStarted && plugin.expectedCells === 0
+                indeterminate: plugin.collectionActive && plugin.columnNames.length === 0
             }
 
             Label {
@@ -290,39 +305,41 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
 
-            // Zone invisible de collecte. FeatureModel est utilisé une fois par entité,
-            // mais chaque attribut est immédiatement copié dans un tableau JavaScript.
-            Item {
-                Layout.preferredWidth: 1
-                Layout.preferredHeight: 1
-                visible: false
+            // Collecteur indépendant de la mise en page. Instantiator crée tous les
+            // délégués, même s'ils ne sont pas visibles à l'écran.
+            Instantiator {
+                id: rowCollector
+                model: plugin.sourceFeatures
 
-                Repeater {
-                    model: plugin.sourceFeatures
-                    delegate: Item {
-                        id: collectorRow
-                        required property var modelData
-                        required property int index
-                        property int rowIndex: index
+                delegate: Item {
+                    id: rowCollectorDelegate
+                    required property var modelData
+                    required property int index
+                    property int rowIndex: index
+                    property int generation: plugin.collectionGeneration
+                    width: 0
+                    height: 0
 
-                        FeatureModel {
-                            id: collectorModel
-                            currentLayer: plugin.selectedLayer
-                            feature: collectorRow.modelData
-                        }
+                    FeatureModel {
+                        id: featureAttributeModel
+                        currentLayer: plugin.selectedLayer
+                        feature: rowCollectorDelegate.modelData
+                    }
 
-                        Repeater {
-                            model: collectorModel
-                            delegate: Item {
-                                required property int index
-                                Component.onCompleted: plugin.registerCell(
-                                    collectorRow.rowIndex,
-                                    index,
-                                    model.AttributeName !== undefined ? model.AttributeName : ("champ_" + index),
-                                    model.AttributeValue,
-                                    collectorModel.count
-                                )
-                            }
+                    Instantiator {
+                        model: featureAttributeModel
+                        delegate: Item {
+                            required property int index
+                            width: 0
+                            height: 0
+                            Component.onCompleted: plugin.registerCell(
+                                rowCollectorDelegate.generation,
+                                rowCollectorDelegate.rowIndex,
+                                index,
+                                model.AttributeName !== undefined ? model.AttributeName : ("champ_" + index),
+                                model.AttributeValue,
+                                featureAttributeModel.count
+                            )
                         }
                     }
                 }
@@ -330,7 +347,8 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Aperçu aplati : identifiant + %1 premières colonnes").arg(Math.min(plugin.displayColumnLimit, plugin.columnNames.length))
+                text: qsTr("Aperçu aplati : identifiant + %1 premières colonnes")
+                    .arg(Math.min(plugin.displayColumnLimit, plugin.columnNames.length))
                 font.bold: true
             }
 
@@ -342,6 +360,7 @@ Item {
                 contentWidth: flatTable.width
                 contentHeight: flatTable.height
                 flickableDirection: Flickable.HorizontalAndVerticalFlick
+                boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AlwaysOn }
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
@@ -351,20 +370,29 @@ Item {
 
                     Row {
                         Rectangle {
-                            width: 110; height: 54
+                            width: 110
+                            height: 54
                             border.color: Theme.lightGray
                             color: Theme.mainBackgroundColor
-                            Label { anchors.fill: parent; anchors.margins: 6; text: qsTr("Entité"); font.bold: true; verticalAlignment: Text.AlignVCenter }
+                            Label {
+                                anchors.fill: parent
+                                anchors.margins: 6
+                                text: qsTr("Entité")
+                                font.bold: true
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
                         Repeater {
                             model: plugin.columnNames.slice(0, plugin.displayColumnLimit)
                             delegate: Rectangle {
                                 required property var modelData
-                                width: 190; height: 54
+                                width: 190
+                                height: 54
                                 border.color: Theme.lightGray
                                 color: Theme.mainBackgroundColor
                                 Label {
-                                    anchors.fill: parent; anchors.margins: 6
+                                    anchors.fill: parent
+                                    anchors.margins: 6
                                     text: String(modelData)
                                     font.bold: true
                                     wrapMode: Text.WordWrap
@@ -384,20 +412,30 @@ Item {
                             required property int index
 
                             Rectangle {
-                                width: 110; height: 38
+                                width: 110
+                                height: 38
                                 border.color: Theme.lightGray
                                 color: flatRow.index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
-                                Label { anchors.fill: parent; anchors.margins: 6; text: modelData ? modelData.fid : ""; verticalAlignment: Text.AlignVCenter }
+                                Label {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    text: modelData ? modelData.fid : ""
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Repeater {
-                                model: modelData && modelData.values ? modelData.values.slice(0, plugin.displayColumnLimit) : []
+                                model: modelData && modelData.values
+                                    ? modelData.values.slice(0, plugin.displayColumnLimit)
+                                    : []
                                 delegate: Rectangle {
                                     required property var modelData
-                                    width: 190; height: 38
+                                    width: 190
+                                    height: 38
                                     border.color: Theme.lightGray
                                     color: flatRow.index % 2 === 0 ? Theme.mainBackgroundColor : "#f4f4f4"
                                     Label {
-                                        anchors.fill: parent; anchors.margins: 6
+                                        anchors.fill: parent
+                                        anchors.margins: 6
                                         text: String(modelData)
                                         elide: Text.ElideRight
                                         verticalAlignment: Text.AlignVCenter
@@ -411,7 +449,7 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Cette version teste uniquement l’aplatissement des données. La table complète et les filtres reviendront après validation.")
+                text: qsTr("Version 0.4.0 : collecte avec Instantiator, puis affichage à partir d'un modèle JavaScript aplati.")
                 opacity: 0.7
                 horizontalAlignment: Text.AlignRight
                 wrapMode: Text.WordWrap
