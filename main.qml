@@ -34,6 +34,10 @@ Item {
     property int filterColumn: -1
     property string filterMode: "contains"
     property string filterText: ""
+    property string selectedCellAlias: ""
+    property string selectedCellFieldName: ""
+    property string selectedCellValue: ""
+    property int selectedCellColumn: -1
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -78,12 +82,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.2 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.3 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.2 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.3 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -116,6 +120,10 @@ Item {
         filterColumn = -1
         filterMode = "contains"
         filterText = ""
+        selectedCellAlias = ""
+        selectedCellFieldName = ""
+        selectedCellValue = ""
+        selectedCellColumn = -1
         if (searchField) searchField.text = ""
         if (columnFilterText) columnFilterText.text = ""
     }
@@ -135,7 +143,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.2 iterator: " + error)
+            console.log("QField Table v0.5.3 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -334,6 +342,44 @@ Item {
         applyView()
     }
 
+    function selectCell(featureIdValue, columnIndex, value) {
+        selectedFeatureId = String(featureIdValue)
+        selectedCellColumn = columnIndex
+        if (columnIndex >= 0 && columnIndex < columns.length) {
+            selectedCellAlias = columns[columnIndex].alias || columns[columnIndex].fieldName || qsTr("Champ")
+            selectedCellFieldName = columns[columnIndex].fieldName || ""
+        } else {
+            selectedCellAlias = qsTr("Identifiant de l’entité")
+            selectedCellFieldName = "fid"
+        }
+        selectedCellValue = formatValue(value)
+    }
+
+    function copySelectedValue() {
+        if (!selectedCellValue || selectedCellValue.length === 0) return
+        try {
+            if (Qt.application && Qt.application.clipboard) {
+                if (typeof Qt.application.clipboard.setText === "function")
+                    Qt.application.clipboard.setText(selectedCellValue)
+                else
+                    Qt.application.clipboard.text = selectedCellValue
+                copyFeedback.text = qsTr("Valeur copiée")
+                copyFeedbackTimer.restart()
+                return
+            }
+        } catch (e1) { console.log("QField Table clipboard Qt: " + e1) }
+        try {
+            if (mainWindow && typeof mainWindow.copyToClipboard === "function") {
+                mainWindow.copyToClipboard(selectedCellValue)
+                copyFeedback.text = qsTr("Valeur copiée")
+                copyFeedbackTimer.restart()
+                return
+            }
+        } catch (e2) { console.log("QField Table clipboard mainWindow: " + e2) }
+        copyFeedback.text = qsTr("Copie non disponible sur cette plateforme")
+        copyFeedbackTimer.restart()
+    }
+
     function clearColumnFilter() {
         filterColumn = -1
         filterMode = "contains"
@@ -349,7 +395,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.2 chargé")
+        console.log("QField Table v0.5.3 chargé")
     }
 
     Connections {
@@ -393,6 +439,13 @@ Item {
     }
 
     Timer {
+        id: copyFeedbackTimer
+        interval: 1800
+        repeat: false
+        onTriggered: copyFeedback.text = ""
+    }
+
+    Timer {
         id: searchTimer
         interval: 250
         repeat: false
@@ -414,7 +467,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.2")
+        title: qsTr("QField Table — v0.5.3")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1500)
         height: Math.min(parent ? parent.height - 24 : 750, 980)
@@ -692,12 +745,24 @@ Item {
                                         height: parent.height
                                         border.width: 1
                                         border.color: Theme.lightGray
-                                        color: "transparent"
+                                        color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === -1
+                                               ? "#dff2c7" : "transparent"
                                         Label {
                                             anchors.fill: parent
                                             anchors.margins: 6
                                             text: modelData.featureId
                                             verticalAlignment: Text.AlignVCenter
+                                            elide: Text.ElideRight
+                                        }
+                                        ToolTip.visible: entityCellMouse.containsMouse
+                                        ToolTip.text: String(modelData.featureId)
+                                        MouseArea {
+                                            id: entityCellMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            pressAndHoldInterval: 500
+                                            onClicked: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
+                                            onPressAndHold: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
                                         }
                                     }
 
@@ -706,17 +771,29 @@ Item {
                                         delegate: Rectangle {
                                             required property int index
                                             property var columnData: plugin.columns[index]
+                                            property string cellValue: modelData.values[index] !== undefined ? String(modelData.values[index]) : ""
                                             width: columnData ? columnData.width : 140
                                             height: frozenCellsRow.height
                                             border.width: 1
                                             border.color: Theme.lightGray
-                                            color: "transparent"
+                                            color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === index
+                                                   ? "#dff2c7" : "transparent"
                                             Label {
                                                 anchors.fill: parent
                                                 anchors.margins: 6
                                                 elide: Text.ElideRight
                                                 verticalAlignment: Text.AlignVCenter
-                                                text: modelData.values[index] !== undefined ? modelData.values[index] : ""
+                                                text: cellValue
+                                            }
+                                            ToolTip.visible: frozenCellMouse.containsMouse
+                                            ToolTip.text: cellValue
+                                            MouseArea {
+                                                id: frozenCellMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                pressAndHoldInterval: 500
+                                                onClicked: plugin.selectCell(modelData.featureId, index, cellValue)
+                                                onPressAndHold: plugin.selectCell(modelData.featureId, index, cellValue)
                                             }
                                         }
                                     }
@@ -737,17 +814,29 @@ Item {
                                                 required property int index
                                                 property int actualIndex: index + plugin.frozenColumnCount
                                                 property var columnData: plugin.columns[actualIndex]
+                                                property string cellValue: modelData.values[actualIndex] !== undefined ? String(modelData.values[actualIndex]) : ""
                                                 width: columnData ? columnData.width : 140
                                                 height: scrollingCellsViewport.height
                                                 border.width: 1
                                                 border.color: Theme.lightGray
-                                                color: "transparent"
+                                                color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === actualIndex
+                                                       ? "#dff2c7" : "transparent"
                                                 Label {
                                                     anchors.fill: parent
                                                     anchors.margins: 6
                                                     elide: Text.ElideRight
                                                     verticalAlignment: Text.AlignVCenter
-                                                    text: modelData.values[actualIndex] !== undefined ? modelData.values[actualIndex] : ""
+                                                    text: cellValue
+                                                }
+                                                ToolTip.visible: scrollingCellMouse.containsMouse
+                                                ToolTip.text: cellValue
+                                                MouseArea {
+                                                    id: scrollingCellMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    pressAndHoldInterval: 500
+                                                    onClicked: plugin.selectCell(modelData.featureId, actualIndex, cellValue)
+                                                    onPressAndHold: plugin.selectCell(modelData.featureId, actualIndex, cellValue)
                                                 }
                                             }
                                         }
@@ -755,10 +844,6 @@ Item {
                                 }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: plugin.selectedFeatureId = String(modelData.featureId)
-                            }
                         }
                     }
                 }
@@ -783,13 +868,68 @@ Item {
                 }
             }
 
-            Label {
+            Rectangle {
                 Layout.fillWidth: true
-                horizontalAlignment: Text.AlignRight
-                opacity: 0.75
-                text: plugin.selectedFeatureId.length > 0
-                      ? qsTr("Entité sélectionnée : %1").arg(plugin.selectedFeatureId)
-                      : qsTr("Cliquez sur une ligne pour la sélectionner.")
+                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? 132 : 44
+                color: "#fafafa"
+                border.width: 1
+                border.color: Theme.lightGray
+                radius: 3
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 5
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label {
+                            Layout.fillWidth: true
+                            font.bold: true
+                            text: plugin.selectedFeatureId.length > 0
+                                  ? qsTr("Entité %1 — %2").arg(plugin.selectedFeatureId).arg(plugin.selectedCellAlias)
+                                  : qsTr("Cliquez sur une cellule pour afficher sa valeur complète.")
+                            elide: Text.ElideRight
+                        }
+                        Label {
+                            visible: plugin.selectedCellFieldName.length > 0
+                            text: plugin.selectedCellFieldName
+                            opacity: 0.65
+                        }
+                        Button {
+                            visible: plugin.selectedFeatureId.length > 0
+                            text: qsTr("Copier")
+                            enabled: plugin.selectedCellValue.length > 0
+                            onClicked: plugin.copySelectedValue()
+                        }
+                    }
+
+                    TextArea {
+                        id: fullValueArea
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: plugin.selectedFeatureId.length > 0
+                        readOnly: true
+                        selectByMouse: true
+                        wrapMode: TextEdit.Wrap
+                        text: plugin.selectedCellValue
+                        placeholderText: qsTr("Valeur vide")
+                        background: Rectangle {
+                            color: "white"
+                            border.width: 1
+                            border.color: Theme.lightGray
+                            radius: 2
+                        }
+                    }
+
+                    Label {
+                        id: copyFeedback
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignRight
+                        color: Theme.mainColor
+                        text: ""
+                    }
+                }
             }
         }
     }
