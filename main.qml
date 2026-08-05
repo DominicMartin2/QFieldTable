@@ -76,7 +76,7 @@ Item {
                 }
             }
         } catch (e1) {
-            console.log("QField Table v0.3.3: qgisProject.mapLayers() indisponible: " + e1)
+            console.log("QField Table v0.3.4: qgisProject.mapLayers() indisponible: " + e1)
         }
 
         try {
@@ -86,7 +86,7 @@ Item {
                     appendCandidate(canvasLayers[j], seen)
             }
         } catch (e2) {
-            console.log("QField Table v0.3.3: mapSettings.layers indisponible: " + e2)
+            console.log("QField Table v0.3.4: mapSettings.layers indisponible: " + e2)
         }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
@@ -138,7 +138,7 @@ Item {
             totalFeatureCount = found.length
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.3.3: " + error)
+            console.log("QField Table v0.3.4: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); aperçu des %3 premières lignes")
@@ -154,7 +154,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.3.3 chargé")
+        console.log("QField Table v0.3.4 chargé")
     }
 
     Connections {
@@ -179,7 +179,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.3.3")
+        title: qsTr("QField Table — v0.3.4")
         standardButtons: Dialog.Close
 
         width: Math.min(parent ? parent.width - 20 : 900, 1500)
@@ -232,7 +232,6 @@ Item {
                 contentWidth: Math.max(width, tableContent.width)
                 contentHeight: height
 
-                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 Item {
                     id: tableContent
@@ -389,9 +388,52 @@ Item {
                 }
             }
 
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                Button {
+                    text: "◀"
+                    enabled: horizontalFlick.contentX > 0
+                    onClicked: horizontalFlick.contentX = Math.max(0, horizontalFlick.contentX - horizontalFlick.width * 0.8)
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Défiler vers la gauche")
+                }
+
+                ScrollBar {
+                    id: explicitHorizontalBar
+                    Layout.fillWidth: true
+                    orientation: Qt.Horizontal
+                    policy: ScrollBar.AlwaysOn
+                    interactive: true
+                    size: horizontalFlick.contentWidth > 0
+                          ? Math.min(1, horizontalFlick.width / horizontalFlick.contentWidth)
+                          : 1
+                    position: horizontalFlick.contentWidth > horizontalFlick.width
+                              ? horizontalFlick.contentX / (horizontalFlick.contentWidth - horizontalFlick.width)
+                              : 0
+
+                    onPositionChanged: {
+                        if (pressed && horizontalFlick.contentWidth > horizontalFlick.width) {
+                            horizontalFlick.contentX = position * (horizontalFlick.contentWidth - horizontalFlick.width)
+                        }
+                    }
+                }
+
+                Button {
+                    text: "▶"
+                    enabled: horizontalFlick.contentX < horizontalFlick.contentWidth - horizontalFlick.width
+                    onClicked: horizontalFlick.contentX = Math.min(
+                                   Math.max(0, horizontalFlick.contentWidth - horizontalFlick.width),
+                                   horizontalFlick.contentX + horizontalFlick.width * 0.8)
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Défiler vers la droite")
+                }
+            }
+
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Lecture seule — aperçu limité temporairement à %1 lignes.").arg(plugin.previewLimit)
+                text: qsTr("Lecture seule — aperçu limité temporairement à %1 lignes. Utilisez la barre inférieure pour consulter les autres colonnes.").arg(plugin.previewLimit)
                 opacity: 0.7
                 horizontalAlignment: Text.AlignRight
             }

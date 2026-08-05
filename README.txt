@@ -1,12 +1,10 @@
-QField Table v0.3.3
+QField Table v0.3.4
 
-Correctif de la première grille tabulaire.
+Correctif du défilement horizontal de la grille.
 
-- remplace la combinaison Flickable/ListView imbriquée qui donnait une zone vide;
-- utilise une grille simple basée sur FeatureModel, déjà validé dans la v0.2;
-- affiche les alias de champs en colonnes;
+- conserve les en-têtes et les lignes de la v0.3.3;
+- ajoute une barre horizontale explicite et toujours visible;
+- ajoute des boutons gauche/droite pour la souris et le tactile;
+- synchronise la barre avec la position horizontale de la table;
 - affiche temporairement les 50 premières entités;
-- défilement horizontal et vertical;
 - lecture seule.
-
-Correctif v0.3.3 : les cellules de chaque ligne utilisent désormais un ListView horizontal afin d’afficher tous les attributs.
