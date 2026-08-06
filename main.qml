@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Qt.labs.settings
 
 import org.qfield
 import org.qgis
@@ -53,6 +54,10 @@ Item {
     property var pendingColumnVisibility: ({})
     property string columnSearchText: ""
     property var visibleColumnManagerItems: []
+    property string restoredConfigurationKey: ""
+    property int draggedColumnOriginalIndex: -1
+    property int draggedTargetInsertPosition: -1
+    property real columnDragIndicatorY: -1
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -97,12 +102,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.8 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.9 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.8 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.9 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -151,6 +156,10 @@ Item {
         pendingColumnVisibility = ({})
         columnSearchText = ""
         visibleColumnManagerItems = []
+        restoredConfigurationKey = ""
+        draggedColumnOriginalIndex = -1
+        draggedTargetInsertPosition = -1
+        columnDragIndicatorY = -1
         if (searchField) searchField.text = ""
         if (columnFilterText) columnFilterText.text = ""
     }
@@ -170,7 +179,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.8 iterator: " + error)
+            console.log("QField Table v0.5.9 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -266,8 +275,174 @@ Item {
             })
         }
         columns = updated
-        ensureColumnConfiguration()
+        restoreColumnConfiguration()
         refreshDisplayedColumns()
+    }
+
+    function projectIdentifier() {
+        try {
+            var fileName = typeof qgisProject.fileName === "function" ? qgisProject.fileName() : qgisProject.fileName
+            if (fileName !== undefined && fileName !== null && String(fileName).length > 0)
+                return String(fileName)
+        } catch (e1) {}
+        try {
+            var title = typeof qgisProject.title === "function" ? qgisProject.title() : qgisProject.title
+            if (title !== undefined && title !== null && String(title).length > 0)
+                return String(title)
+        } catch (e2) {}
+        return "projet_sans_identifiant"
+    }
+
+    function configurationKey() {
+        return projectIdentifier() + "|" + layerId(selectedLayer)
+    }
+
+    function parseStoredConfigurations() {
+        try {
+            var parsed = JSON.parse(persistentSettings.projectConfigurations || "{}")
+            return parsed && typeof parsed === "object" ? parsed : ({})
+        } catch (e) {
+            console.log("QField Table v0.5.9 configuration invalide: " + e)
+            return ({})
+        }
+    }
+
+    function columnPersistentName(index) {
+        if (index < 0 || index >= columns.length) return ""
+        var fieldName = String(columns[index].fieldName || "")
+        return fieldName.length > 0 ? fieldName : "__index__" + String(index)
+    }
+
+    function saveColumnConfiguration() {
+        if (!selectedLayer || columns.length === 0) return
+        var all = parseStoredConfigurations()
+        var orderNames = []
+        var hiddenNames = []
+        for (var i = 0; i < columnOrder.length; ++i) {
+            var idx = Number(columnOrder[i])
+            var name = columnPersistentName(idx)
+            if (name.length > 0) orderNames.push(name)
+            if (columnVisibility[String(idx)] === false && name.length > 0) hiddenNames.push(name)
+        }
+        all[configurationKey()] = {
+            "order": orderNames,
+            "hidden": hiddenNames,
+            "frozenColumnCount": frozenColumnCount,
+            "inspectorHeight": inspectorHeight
+        }
+        persistentSettings.projectConfigurations = JSON.stringify(all)
+    }
+
+    function restoreColumnConfiguration() {
+        if (!selectedLayer || columns.length === 0) {
+            ensureColumnConfiguration()
+            return
+        }
+        var key = configurationKey()
+        if (restoredConfigurationKey === key && columnOrder.length === columns.length) {
+            ensureColumnConfiguration()
+            return
+        }
+
+        var all = parseStoredConfigurations()
+        var saved = all[key]
+        if (!saved || !saved.order || !Array.isArray(saved.order)) {
+            columnOrder = []
+            columnVisibility = ({})
+            ensureColumnConfiguration()
+            restoredConfigurationKey = key
+            return
+        }
+
+        var indexByName = ({})
+        for (var c = 0; c < columns.length; ++c)
+            indexByName[columnPersistentName(c)] = c
+
+        var order = []
+        var used = ({})
+        for (var i = 0; i < saved.order.length; ++i) {
+            var savedName = String(saved.order[i])
+            if (indexByName[savedName] === undefined) continue
+            var idx = Number(indexByName[savedName])
+            if (used[String(idx)]) continue
+            used[String(idx)] = true
+            order.push(idx)
+        }
+        for (var j = 0; j < columns.length; ++j) {
+            if (!used[String(j)]) order.push(j)
+        }
+
+        var hidden = ({})
+        if (saved.hidden && Array.isArray(saved.hidden))
+            for (var h = 0; h < saved.hidden.length; ++h) hidden[String(saved.hidden[h])] = true
+
+        var visibility = ({})
+        for (var k = 0; k < columns.length; ++k)
+            visibility[String(k)] = hidden[columnPersistentName(k)] !== true
+
+        columnOrder = order
+        columnVisibility = visibility
+        if (saved.frozenColumnCount !== undefined)
+            frozenColumnCount = Math.max(0, Math.min(Number(saved.frozenColumnCount), columns.length))
+        if (saved.inspectorHeight !== undefined)
+            inspectorHeight = Math.max(inspectorMinHeight, Number(saved.inspectorHeight))
+        restoredConfigurationKey = key
+    }
+
+    function movePendingColumnToInsertPosition(originalIndex, insertPosition) {
+        var order = cloneArray(pendingColumnOrder)
+        var from = order.indexOf(originalIndex)
+        if (from < 0) from = order.indexOf(String(originalIndex))
+        if (from < 0) return
+        var item = order.splice(from, 1)[0]
+        var target = Math.max(0, Math.min(Number(insertPosition), order.length + 1))
+        if (target > from) target--
+        target = Math.max(0, Math.min(target, order.length))
+        order.splice(target, 0, item)
+        pendingColumnOrder = order
+        filterColumnManagerItems()
+    }
+
+    function beginColumnDrag(originalIndex) {
+        if (String(columnSearchText || "").trim().length > 0) return
+        draggedColumnOriginalIndex = Number(originalIndex)
+        draggedTargetInsertPosition = -1
+        columnDragIndicatorY = -1
+    }
+
+    function updateColumnDrag(contentY) {
+        if (draggedColumnOriginalIndex < 0 || String(columnSearchText || "").trim().length > 0) return
+        var visibleIndex = columnManagerList.indexAt(10, contentY)
+        if (visibleIndex < 0) {
+            if (contentY <= 0) {
+                draggedTargetInsertPosition = 0
+                columnDragIndicatorY = 0
+            } else {
+                draggedTargetInsertPosition = pendingColumnOrder.length
+                columnDragIndicatorY = columnManagerList.contentHeight
+            }
+            return
+        }
+        var item = columnManagerList.itemAtIndex(visibleIndex)
+        var entry = visibleColumnManagerItems[visibleIndex]
+        if (!item || !entry) return
+        var after = contentY > item.y + item.height / 2
+        draggedTargetInsertPosition = Number(entry.position) + (after ? 1 : 0)
+        columnDragIndicatorY = item.y + (after ? item.height : 0)
+    }
+
+    function finishColumnDrag() {
+        if (draggedColumnOriginalIndex >= 0 && draggedTargetInsertPosition >= 0)
+            movePendingColumnToInsertPosition(draggedColumnOriginalIndex, draggedTargetInsertPosition)
+        draggedColumnOriginalIndex = -1
+        draggedTargetInsertPosition = -1
+        columnDragIndicatorY = -1
+    }
+
+    function cancelColumnDrag() {
+        draggedColumnOriginalIndex = -1
+        draggedTargetInsertPosition = -1
+        columnDragIndicatorY = -1
     }
 
     function ensureColumnConfiguration() {
@@ -403,6 +578,7 @@ Item {
         columnVisibility = visibility
         refreshDisplayedColumns()
         horizontalOffset = 0
+        saveColumnConfiguration()
         columnManagerDialog.close()
     }
 
@@ -760,9 +936,15 @@ Item {
         browserDialog.open()
     }
 
+    Settings {
+        id: persistentSettings
+        category: "QFieldTable"
+        property string projectConfigurations: "{}"
+    }
+
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.8 chargé")
+        console.log("QField Table v0.5.9 chargé")
     }
 
     Connections {
@@ -834,7 +1016,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.8")
+        title: qsTr("QField Table — v0.5.9")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1284,6 +1466,8 @@ Item {
                         plugin.inspectorHeight = Math.max(plugin.inspectorMinHeight,
                                                           Math.min(maximum, startHeight - (point.y - startY)))
                     }
+                    onReleased: plugin.saveColumnConfiguration()
+                    onCanceled: plugin.saveColumnConfiguration()
                 }
             }
 
@@ -1511,8 +1695,16 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Utilisez les flèches pour déplacer un champ. L’ordre est conservé pendant la session.")
+                text: qsTr("Maintenez la poignée ≡, puis glissez pour déplacer un champ. Les flèches restent disponibles. La configuration est enregistrée automatiquement pour cette couche et ce projet.")
                 opacity: 0.7
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.columnSearchText.trim().length > 0
+                text: qsTr("Effacez la recherche pour utiliser le glisser-déposer; les flèches restent actives.")
+                color: Theme.warningColor
                 wrapMode: Text.WordWrap
             }
 
@@ -1527,11 +1719,24 @@ Item {
                 model: plugin.visibleColumnManagerItems
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
 
+                Rectangle {
+                    parent: columnManagerList.contentItem
+                    visible: plugin.columnDragIndicatorY >= 0
+                    x: 4
+                    y: plugin.columnDragIndicatorY - 2
+                    width: Math.max(0, columnManagerList.width - 28)
+                    height: 4
+                    radius: 2
+                    color: Theme.mainColor
+                    z: 1000
+                }
+
                 delegate: Rectangle {
+                    id: columnManagerRow
                     required property var modelData
                     width: Math.max(0, columnManagerList.width - 18)
                     height: 50
-                    color: index % 2 ? "#f6f6f6" : "transparent"
+                    color: plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex) ? "#dcefdc" : (index % 2 ? "#f6f6f6" : "transparent")
                     border.width: 1
                     border.color: Theme.lightGray
 
@@ -1540,6 +1745,39 @@ Item {
                         anchors.leftMargin: 8
                         anchors.rightMargin: 8
                         spacing: 8
+
+                        Rectangle {
+                            Layout.preferredWidth: 42
+                            Layout.fillHeight: true
+                            color: "transparent"
+                            Label {
+                                anchors.centerIn: parent
+                                text: "≡"
+                                font.pixelSize: 26
+                                color: Theme.mainColor
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.SizeVerCursor
+                                onPressAndHold: {
+                                    plugin.beginColumnDrag(modelData.originalIndex)
+                                    if (plugin.draggedColumnOriginalIndex >= 0)
+                                        plugin.updateColumnDrag(columnManagerRow.y + mouse.y)
+                                }
+                                onPositionChanged: {
+                                    if (plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex))
+                                        plugin.updateColumnDrag(columnManagerRow.y + mouse.y)
+                                }
+                                onReleased: {
+                                    if (plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex))
+                                        plugin.finishColumnDrag()
+                                }
+                                onCanceled: plugin.cancelColumnDrag()
+                            }
+                            ToolTip.visible: dragHandleHover.containsMouse
+                            ToolTip.text: qsTr("Appui long, puis glisser")
+                            MouseArea { id: dragHandleHover; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+                        }
 
                         CheckBox {
                             checked: plugin.pendingColumnVisibility[String(modelData.originalIndex)] !== false
