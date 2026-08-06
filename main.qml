@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Qt.labs.settings
 
 import org.qfield
 import org.qgis
@@ -55,6 +54,9 @@ Item {
     property string columnSearchText: ""
     property var visibleColumnManagerItems: []
     property string restoredConfigurationKey: ""
+    // Correctif 0.5.9.1 : conservation en mémoire pendant la session.
+    // La persistance disque sera réintroduite via une API QField officiellement exposée.
+    property string sessionProjectConfigurations: "{}"
     property int draggedColumnOriginalIndex: -1
     property int draggedTargetInsertPosition: -1
     property real columnDragIndicatorY: -1
@@ -102,12 +104,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.9 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.9.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.9 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.9.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -179,7 +181,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.9 iterator: " + error)
+            console.log("QField Table v0.5.9.1 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -299,10 +301,10 @@ Item {
 
     function parseStoredConfigurations() {
         try {
-            var parsed = JSON.parse(persistentSettings.projectConfigurations || "{}")
+            var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.5.9 configuration invalide: " + e)
+            console.log("QField Table v0.5.9.1 configuration invalide: " + e)
             return ({})
         }
     }
@@ -330,7 +332,7 @@ Item {
             "frozenColumnCount": frozenColumnCount,
             "inspectorHeight": inspectorHeight
         }
-        persistentSettings.projectConfigurations = JSON.stringify(all)
+        sessionProjectConfigurations = JSON.stringify(all)
     }
 
     function restoreColumnConfiguration() {
@@ -936,15 +938,9 @@ Item {
         browserDialog.open()
     }
 
-    Settings {
-        id: persistentSettings
-        category: "QFieldTable"
-        property string projectConfigurations: "{}"
-    }
-
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.9 chargé")
+        console.log("QField Table v0.5.9.1 chargé")
     }
 
     Connections {
