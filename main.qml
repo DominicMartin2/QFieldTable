@@ -45,6 +45,14 @@ Item {
     property real inspectorHeight: 190
     property real inspectorMinHeight: 105
     property var pendingDistinctKeys: ({})
+    // Gestion des colonnes affichées. Les indices font référence à columns/row.values.
+    property var displayedColumns: []
+    property var columnOrder: []
+    property var columnVisibility: ({})
+    property var pendingColumnOrder: []
+    property var pendingColumnVisibility: ({})
+    property string columnSearchText: ""
+    property var visibleColumnManagerItems: []
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -89,12 +97,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.7 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.8 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.7 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.8 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -136,6 +144,13 @@ Item {
         selectedCellValue = ""
         selectedCellColumn = -1
         pendingDistinctKeys = ({})
+        displayedColumns = []
+        columnOrder = []
+        columnVisibility = ({})
+        pendingColumnOrder = []
+        pendingColumnVisibility = ({})
+        columnSearchText = ""
+        visibleColumnManagerItems = []
         if (searchField) searchField.text = ""
         if (columnFilterText) columnFilterText.text = ""
     }
@@ -155,7 +170,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.7 iterator: " + error)
+            console.log("QField Table v0.5.8 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -251,6 +266,155 @@ Item {
             })
         }
         columns = updated
+        ensureColumnConfiguration()
+        refreshDisplayedColumns()
+    }
+
+    function ensureColumnConfiguration() {
+        if (columns.length === 0) {
+            columnOrder = []
+            columnVisibility = ({})
+            displayedColumns = []
+            return
+        }
+        var valid = columnOrder.length === columns.length
+        if (valid) {
+            var seen = ({})
+            for (var i = 0; i < columnOrder.length; ++i) {
+                var idx = Number(columnOrder[i])
+                if (idx < 0 || idx >= columns.length || seen[idx]) { valid = false; break }
+                seen[idx] = true
+            }
+        }
+        if (!valid) {
+            var order = []
+            var visibility = ({})
+            for (var c = 0; c < columns.length; ++c) {
+                order.push(c)
+                visibility[String(c)] = true
+            }
+            columnOrder = order
+            columnVisibility = visibility
+        } else {
+            var normalized = ({})
+            for (var j = 0; j < columns.length; ++j)
+                normalized[String(j)] = columnVisibility[String(j)] !== false
+            columnVisibility = normalized
+        }
+    }
+
+    function refreshDisplayedColumns() {
+        ensureColumnConfiguration()
+        var result = []
+        for (var p = 0; p < columnOrder.length; ++p) {
+            var originalIndex = Number(columnOrder[p])
+            if (columnVisibility[String(originalIndex)] === false) continue
+            var source = columns[originalIndex]
+            if (!source) continue
+            result.push({
+                "alias": source.alias,
+                "fieldName": source.fieldName,
+                "fieldIndex": source.fieldIndex,
+                "sampleValue": source.sampleValue,
+                "width": source.width,
+                "originalIndex": originalIndex
+            })
+        }
+        displayedColumns = result
+        if (horizontalSlider) horizontalOffset = Math.min(horizontalOffset, maxHorizontalOffset(scrollingHeaderViewport ? scrollingHeaderViewport.width : 0))
+    }
+
+    function cloneArray(source) {
+        var result = []
+        for (var i = 0; i < source.length; ++i) result.push(source[i])
+        return result
+    }
+
+    function openColumnManager() {
+        ensureColumnConfiguration()
+        pendingColumnOrder = cloneArray(columnOrder)
+        pendingColumnVisibility = ({})
+        for (var key in columnVisibility) pendingColumnVisibility[key] = columnVisibility[key] !== false
+        columnSearchText = ""
+        filterColumnManagerItems()
+        columnManagerDialog.open()
+    }
+
+    function filterColumnManagerItems() {
+        var needle = String(columnSearchText || "").toLowerCase().trim()
+        var result = []
+        for (var p = 0; p < pendingColumnOrder.length; ++p) {
+            var originalIndex = Number(pendingColumnOrder[p])
+            var col = columns[originalIndex]
+            if (!col) continue
+            var label = col.alias || col.fieldName || qsTr("Champ")
+            var haystack = (String(label) + " " + String(col.fieldName || "")).toLowerCase()
+            if (needle.length === 0 || haystack.indexOf(needle) >= 0)
+                result.push({ "originalIndex": originalIndex, "position": p, "label": label, "fieldName": col.fieldName || "" })
+        }
+        visibleColumnManagerItems = result
+    }
+
+    function setPendingColumnVisible(originalIndex, checked) {
+        var copy = ({})
+        for (var key in pendingColumnVisibility) copy[key] = pendingColumnVisibility[key] !== false
+        copy[String(originalIndex)] = checked
+        pendingColumnVisibility = copy
+    }
+
+    function setAllPendingColumnsVisible(checked) {
+        var copy = ({})
+        for (var i = 0; i < columns.length; ++i) copy[String(i)] = checked
+        pendingColumnVisibility = copy
+    }
+
+    function invertPendingColumns() {
+        var copy = ({})
+        for (var i = 0; i < columns.length; ++i) copy[String(i)] = pendingColumnVisibility[String(i)] === false
+        pendingColumnVisibility = copy
+    }
+
+    function movePendingColumn(originalIndex, direction) {
+        var order = cloneArray(pendingColumnOrder)
+        var position = order.indexOf(originalIndex)
+        if (position < 0) position = order.indexOf(String(originalIndex))
+        var target = position + direction
+        if (position < 0 || target < 0 || target >= order.length) return
+        var tmp = order[position]
+        order[position] = order[target]
+        order[target] = tmp
+        pendingColumnOrder = order
+        filterColumnManagerItems()
+    }
+
+    function resetPendingColumns() {
+        var order = []
+        var visibility = ({})
+        for (var i = 0; i < columns.length; ++i) { order.push(i); visibility[String(i)] = true }
+        pendingColumnOrder = order
+        pendingColumnVisibility = visibility
+        filterColumnManagerItems()
+    }
+
+    function applyPendingColumns() {
+        columnOrder = cloneArray(pendingColumnOrder)
+        var visibility = ({})
+        for (var key in pendingColumnVisibility) visibility[key] = pendingColumnVisibility[key] !== false
+        columnVisibility = visibility
+        refreshDisplayedColumns()
+        horizontalOffset = 0
+        columnManagerDialog.close()
+    }
+
+    function cancelPendingColumns() {
+        columnManagerDialog.close()
+    }
+
+    function visibleColumnCount() {
+        var count = 0
+        for (var i = 0; i < pendingColumnOrder.length; ++i)
+            if (pendingColumnVisibility[String(pendingColumnOrder[i])] !== false) count++
+        return count
     }
 
     function buildRows() {
@@ -271,15 +435,15 @@ Item {
 
     function frozenWidth() {
         var total = 90
-        var count = Math.min(frozenColumnCount, columns.length)
-        for (var i = 0; i < count; ++i) total += columns[i].width
+        var count = Math.min(frozenColumnCount, displayedColumns.length)
+        for (var i = 0; i < count; ++i) total += displayedColumns[i].width
         return total
     }
 
     function scrollingWidth() {
         var total = 0
-        for (var i = Math.min(frozenColumnCount, columns.length); i < columns.length; ++i)
-            total += columns[i].width
+        for (var i = Math.min(frozenColumnCount, displayedColumns.length); i < displayedColumns.length; ++i)
+            total += displayedColumns[i].width
         return total
     }
 
@@ -598,7 +762,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.7 chargé")
+        console.log("QField Table v0.5.8 chargé")
     }
 
     Connections {
@@ -670,7 +834,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.7")
+        title: qsTr("QField Table — v0.5.8")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -757,6 +921,10 @@ Item {
                     onClicked: plugin.reopenDistinctFilter()
                 }
                 Button { text: qsTr("Effacer"); onClicked: plugin.clearColumnFilter() }
+                Button {
+                    text: qsTr("▦ Colonnes…")
+                    onClicked: plugin.openColumnManager()
+                }
             }
 
             Label { id: statusLabel; Layout.fillWidth: true; wrapMode: Text.WordWrap }
@@ -843,10 +1011,10 @@ Item {
                         }
 
                         Repeater {
-                            model: Math.min(plugin.frozenColumnCount, plugin.columns.length)
+                            model: Math.min(plugin.frozenColumnCount, plugin.displayedColumns.length)
                             delegate: Rectangle {
                                 required property int index
-                                property var columnData: plugin.columns[index]
+                                property var columnData: plugin.displayedColumns[index]
                                 width: columnData ? columnData.width : 140
                                 height: frozenHeaderRow.height
                                 border.width: 1
@@ -858,7 +1026,7 @@ Item {
                                     font.bold: true
                                     wrapMode: Text.WordWrap
                                     text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ"))
-                                                       + (plugin.sortColumn === index ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
+                                                       + (plugin.sortColumn === columnData.originalIndex ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
                                 }
                                 ToolTip.visible: frozenHeaderMouse.containsMouse
                                 ToolTip.text: columnData ? qsTr("%1 — cliquer pour trier").arg(columnData.fieldName) : ""
@@ -866,7 +1034,7 @@ Item {
                                     id: frozenHeaderMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: plugin.toggleSort(index)
+                                    onClicked: plugin.toggleSort(columnData.originalIndex)
                                 }
                             }
                         }
@@ -882,11 +1050,11 @@ Item {
                             x: -plugin.horizontalOffset
                             height: parent.height
                             Repeater {
-                                model: Math.max(0, plugin.columns.length - plugin.frozenColumnCount)
+                                model: Math.max(0, plugin.displayedColumns.length - plugin.frozenColumnCount)
                                 delegate: Rectangle {
                                     required property int index
                                     property int actualIndex: index + plugin.frozenColumnCount
-                                    property var columnData: plugin.columns[actualIndex]
+                                    property var columnData: plugin.displayedColumns[actualIndex]
                                     width: columnData ? columnData.width : 140
                                     height: scrollingHeaderViewport.height
                                     border.width: 1
@@ -898,7 +1066,7 @@ Item {
                                         font.bold: true
                                         wrapMode: Text.WordWrap
                                         text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ"))
-                                                           + (plugin.sortColumn === actualIndex ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
+                                                           + (plugin.sortColumn === columnData.originalIndex ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
                                     }
                                     ToolTip.visible: scrollingHeaderMouse.containsMouse
                                     ToolTip.text: columnData ? qsTr("%1 — cliquer pour trier").arg(columnData.fieldName) : ""
@@ -906,7 +1074,7 @@ Item {
                                         id: scrollingHeaderMouse
                                         anchors.fill: parent
                                         hoverEnabled: true
-                                        onClicked: plugin.toggleSort(actualIndex)
+                                        onClicked: plugin.toggleSort(columnData.originalIndex)
                                     }
                                 }
                             }
@@ -983,16 +1151,16 @@ Item {
                                     }
 
                                     Repeater {
-                                        model: Math.min(plugin.frozenColumnCount, plugin.columns.length)
+                                        model: Math.min(plugin.frozenColumnCount, plugin.displayedColumns.length)
                                         delegate: Rectangle {
                                             required property int index
-                                            property var columnData: plugin.columns[index]
-                                            property string cellValue: modelData.values[index] !== undefined ? String(modelData.values[index]) : ""
+                                            property var columnData: plugin.displayedColumns[index]
+                                            property string cellValue: columnData && modelData.values[columnData.originalIndex] !== undefined ? String(modelData.values[columnData.originalIndex]) : ""
                                             width: columnData ? columnData.width : 140
                                             height: frozenCellsRow.height
                                             border.width: 1
                                             border.color: Theme.lightGray
-                                            color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === index
+                                            color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === columnData.originalIndex
                                                    ? "#dff2c7" : "transparent"
                                             Label {
                                                 anchors.fill: parent
@@ -1008,8 +1176,8 @@ Item {
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 pressAndHoldInterval: 500
-                                                onClicked: plugin.selectCell(modelData.featureId, index, cellValue)
-                                                onPressAndHold: plugin.selectCell(modelData.featureId, index, cellValue)
+                                                onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                                onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                             }
                                         }
                                     }
@@ -1025,17 +1193,17 @@ Item {
                                         x: -plugin.horizontalOffset
                                         height: parent.height
                                         Repeater {
-                                            model: Math.max(0, plugin.columns.length - plugin.frozenColumnCount)
+                                            model: Math.max(0, plugin.displayedColumns.length - plugin.frozenColumnCount)
                                             delegate: Rectangle {
                                                 required property int index
                                                 property int actualIndex: index + plugin.frozenColumnCount
-                                                property var columnData: plugin.columns[actualIndex]
-                                                property string cellValue: modelData.values[actualIndex] !== undefined ? String(modelData.values[actualIndex]) : ""
+                                                property var columnData: plugin.displayedColumns[actualIndex]
+                                                property string cellValue: columnData && modelData.values[columnData.originalIndex] !== undefined ? String(modelData.values[columnData.originalIndex]) : ""
                                                 width: columnData ? columnData.width : 140
                                                 height: scrollingCellsViewport.height
                                                 border.width: 1
                                                 border.color: Theme.lightGray
-                                                color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === actualIndex
+                                                color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === columnData.originalIndex
                                                        ? "#dff2c7" : "transparent"
                                                 Label {
                                                     anchors.fill: parent
@@ -1051,8 +1219,8 @@ Item {
                                                     anchors.fill: parent
                                                     hoverEnabled: true
                                                     pressAndHoldInterval: 500
-                                                    onClicked: plugin.selectCell(modelData.featureId, actualIndex, cellValue)
-                                                    onPressAndHold: plugin.selectCell(modelData.featureId, actualIndex, cellValue)
+                                                    onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                                    onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                                 }
                                             }
                                         }
@@ -1067,7 +1235,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                visible: plugin.columns.length > plugin.frozenColumnCount
+                visible: plugin.displayedColumns.length > plugin.frozenColumnCount
 
                 Label { text: qsTr("Colonnes") }
                 Slider {
@@ -1259,7 +1427,7 @@ Item {
 
                 delegate: Rectangle {
                     required property var modelData
-                    width: distinctListView.width
+                    width: Math.max(0, distinctListView.width - 18)
                     height: 42
                     color: index % 2 ? "#f6f6f6" : "transparent"
                     border.width: 1
@@ -1300,6 +1468,129 @@ Item {
                 }
                 Button { text: qsTr("Annuler"); onClicked: plugin.cancelPendingDistinct() }
                 Button { text: qsTr("Appliquer"); onClicked: plugin.applyPendingDistinct() }
+            }
+        }
+    }
+
+
+    QfDialog {
+        id: columnManagerDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Colonnes affichées et ordre")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(760, parent.width * 0.76) : 900
+        height: parent ? Math.max(650, parent.height * 0.84) : 760
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 8
+
+            TextField {
+                Layout.fillWidth: true
+                placeholderText: qsTr("Rechercher un champ ou un nom technique…")
+                onTextChanged: {
+                    plugin.columnSearchText = text
+                    plugin.filterColumnManagerItems()
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: qsTr("Tout"); onClicked: plugin.setAllPendingColumnsVisible(true) }
+                Button { text: qsTr("Aucun"); onClicked: plugin.setAllPendingColumnsVisible(false) }
+                Button { text: qsTr("Inverser"); onClicked: plugin.invertPendingColumns() }
+                Button { text: qsTr("Réinitialiser"); onClicked: plugin.resetPendingColumns() }
+                Item { Layout.fillWidth: true }
+                Label {
+                    text: qsTr("%1 colonne(s) affichée(s) sur %2").arg(plugin.visibleColumnCount()).arg(plugin.columns.length)
+                    font.bold: true
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Utilisez les flèches pour déplacer un champ. L’ordre est conservé pendant la session.")
+                opacity: 0.7
+                wrapMode: Text.WordWrap
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
+
+            ListView {
+                id: columnManagerList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 2
+                model: plugin.visibleColumnManagerItems
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+
+                delegate: Rectangle {
+                    required property var modelData
+                    width: Math.max(0, columnManagerList.width - 18)
+                    height: 50
+                    color: index % 2 ? "#f6f6f6" : "transparent"
+                    border.width: 1
+                    border.color: Theme.lightGray
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 8
+
+                        CheckBox {
+                            checked: plugin.pendingColumnVisibility[String(modelData.originalIndex)] !== false
+                            onToggled: plugin.setPendingColumnVisible(modelData.originalIndex, checked)
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.label
+                                font.bold: true
+                                elide: Text.ElideRight
+                                ToolTip.visible: columnNameMouse.containsMouse
+                                ToolTip.text: modelData.label
+                                MouseArea { id: columnNameMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.fieldName
+                                opacity: 0.6
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Label {
+                            text: String(modelData.position + 1)
+                            Layout.preferredWidth: 45
+                            horizontalAlignment: Text.AlignRight
+                            opacity: 0.65
+                        }
+                        Button {
+                            text: "▲"
+                            enabled: modelData.position > 0
+                            onClicked: plugin.movePendingColumn(modelData.originalIndex, -1)
+                        }
+                        Button {
+                            text: "▼"
+                            enabled: modelData.position < plugin.pendingColumnOrder.length - 1
+                            onClicked: plugin.movePendingColumn(modelData.originalIndex, 1)
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button { text: qsTr("Annuler"); onClicked: plugin.cancelPendingColumns() }
+                Button { text: qsTr("Appliquer"); onClicked: plugin.applyPendingColumns() }
             }
         }
     }

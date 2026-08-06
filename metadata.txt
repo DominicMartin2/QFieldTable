@@ -1,5 +1,7 @@
+[general]
 name=QField Table
-version=0.5.7
-description=Read-only attribute table with staged distinct-value filters, enlarged workspace and resizable inspector
-qfieldMinimumVersion=4.0.0
+version=0.5.8
+description=Table d'attributs pour QField avec recherche, filtres, inspection et gestion des colonnes.
 author=Dominic Martin
+qfield_version=4.0
+icon=icon.svg
