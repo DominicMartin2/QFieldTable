@@ -82,12 +82,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.4 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.5 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.4 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.5 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -143,7 +143,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.4 iterator: " + error)
+            console.log("QField Table v0.5.5 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -395,7 +395,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.4 chargé")
+        console.log("QField Table v0.5.5 chargé")
     }
 
     Connections {
@@ -467,7 +467,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.4")
+        title: qsTr("QField Table — v0.5.5")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1500)
         height: Math.min(parent ? parent.height - 24 : 750, 980)
@@ -910,22 +910,30 @@ Item {
                         Layout.fillHeight: true
                         visible: plugin.selectedFeatureId.length > 0
                         clip: true
+                        contentWidth: availableWidth
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                         TextArea {
                             id: fullValueArea
                             width: fullValueScroll.availableWidth
+                            height: Math.max(
+                                fullValueScroll.availableHeight,
+                                contentHeight + topPadding + bottomPadding
+                            )
                             readOnly: true
                             selectByMouse: true
-                            wrapMode: TextEdit.Wrap
-                            text: plugin.selectedCellValue
-                            placeholderText: qsTr("Valeur vide")
-                            padding: 10
-                            topPadding: 10
-                            bottomPadding: 10
-                            leftPadding: 10
-                            rightPadding: 10
+                            persistentSelection: true
+                            wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
+                            text: plugin.selectedCellValue.length > 0
+                                  ? plugin.selectedCellValue
+                                  : qsTr("(valeur vide)")
+                            color: plugin.selectedCellValue.length > 0 ? Theme.mainTextColor : Theme.secondaryTextColor
+                            padding: 12
+                            topPadding: 12
+                            bottomPadding: 12
+                            leftPadding: 12
+                            rightPadding: 12
                             background: Rectangle {
                                 color: "white"
                                 border.width: 1

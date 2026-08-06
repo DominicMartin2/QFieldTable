@@ -1,5 +1,5 @@
 name=QField Table
-version=0.5.4
+version=0.5.5
 description=Read-only attribute table with search, sorting, filters, frozen columns and scrollable full-value inspector
 qfieldMinimumVersion=4.0.0
 author=Dominic Martin
