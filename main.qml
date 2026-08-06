@@ -34,6 +34,10 @@ Item {
     property int filterColumn: -1
     property string filterMode: "contains"
     property string filterText: ""
+    property var distinctValues: []
+    property var visibleDistinctValues: []
+    property var selectedDistinctKeys: ({})
+    property string distinctSearchText: ""
     property string selectedCellAlias: ""
     property string selectedCellFieldName: ""
     property string selectedCellValue: ""
@@ -82,12 +86,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.5 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.6 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.5 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.6 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -120,6 +124,10 @@ Item {
         filterColumn = -1
         filterMode = "contains"
         filterText = ""
+        distinctValues = []
+        visibleDistinctValues = []
+        selectedDistinctKeys = ({})
+        distinctSearchText = ""
         selectedCellAlias = ""
         selectedCellFieldName = ""
         selectedCellValue = ""
@@ -143,7 +151,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.5 iterator: " + error)
+            console.log("QField Table v0.5.6 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -287,11 +295,120 @@ Item {
         var text = String(value === undefined || value === null ? "" : value)
         var needle = String(filterText || "").toLowerCase().trim()
 
+        if (filterMode === "values") {
+            var key = distinctKey(value)
+            return selectedDistinctKeys[key] === true
+        }
         if (filterMode === "empty") return valueIsEmpty(value)
         if (filterMode === "notempty") return !valueIsEmpty(value)
         if (filterMode === "equals") return text.toLowerCase() === needle
         if (needle.length === 0) return true
         return text.toLowerCase().indexOf(needle) >= 0
+    }
+
+    function distinctKey(value) {
+        return valueIsEmpty(value) ? "__QFIELD_TABLE_EMPTY__" : String(value)
+    }
+
+    function distinctLabel(value) {
+        return valueIsEmpty(value) ? qsTr("(valeur vide)") : String(value)
+    }
+
+    function rebuildDistinctValues() {
+        if (filterColumn < 0 || filterColumn >= columns.length) {
+            distinctValues = []
+            visibleDistinctValues = []
+            selectedDistinctKeys = ({})
+            return
+        }
+        var counts = ({})
+        var originals = ({})
+        for (var i = 0; i < flatRows.length; ++i) {
+            var value = flatRows[i].values[filterColumn]
+            var key = distinctKey(value)
+            counts[key] = (counts[key] || 0) + 1
+            originals[key] = value
+        }
+        var result = []
+        var selection = ({})
+        for (var key in counts) {
+            result.push({
+                "key": key,
+                "value": originals[key],
+                "label": distinctLabel(originals[key]),
+                "count": counts[key],
+                "checked": true
+            })
+            selection[key] = true
+        }
+        result.sort(function(a, b) {
+            if (a.count !== b.count) return b.count - a.count
+            return String(a.label).localeCompare(String(b.label), Qt.locale(), Locale.CompareCaseInsensitive)
+        })
+        distinctValues = result
+        selectedDistinctKeys = selection
+        filterDistinctList()
+    }
+
+    function filterDistinctList() {
+        var needle = String(distinctSearchText || "").toLowerCase().trim()
+        var result = []
+        for (var i = 0; i < distinctValues.length; ++i) {
+            var item = distinctValues[i]
+            if (needle.length === 0 || String(item.label).toLowerCase().indexOf(needle) >= 0)
+                result.push(item)
+        }
+        visibleDistinctValues = result
+    }
+
+    function setDistinctChecked(key, checked) {
+        var selection = ({})
+        for (var current in selectedDistinctKeys) selection[current] = selectedDistinctKeys[current]
+        selection[key] = checked
+        selectedDistinctKeys = selection
+        var updated = []
+        for (var i = 0; i < distinctValues.length; ++i) {
+            var item = distinctValues[i]
+            updated.push({
+                "key": item.key, "value": item.value, "label": item.label,
+                "count": item.count, "checked": selection[item.key] === true
+            })
+        }
+        distinctValues = updated
+        filterDistinctList()
+        applyView()
+    }
+
+    function setAllDistinctChecked(checked) {
+        var selection = ({})
+        var updated = []
+        for (var i = 0; i < distinctValues.length; ++i) {
+            var item = distinctValues[i]
+            selection[item.key] = checked
+            updated.push({
+                "key": item.key, "value": item.value, "label": item.label,
+                "count": item.count, "checked": checked
+            })
+        }
+        selectedDistinctKeys = selection
+        distinctValues = updated
+        filterDistinctList()
+        applyView()
+    }
+
+    function selectedDistinctCount() {
+        var count = 0
+        for (var key in selectedDistinctKeys) if (selectedDistinctKeys[key] === true) count++
+        return count
+    }
+
+    function openDistinctFilter() {
+        if (filterColumn < 0 || filterColumn >= columns.length) return
+        filterMode = "values"
+        distinctSearchText = ""
+        rebuildDistinctValues()
+        distinctFilterDialog.open()
+        applyView()
     }
 
     function compareValues(a, b) {
@@ -384,7 +501,11 @@ Item {
         filterColumn = -1
         filterMode = "contains"
         filterText = ""
+        distinctValues = []
+        visibleDistinctValues = []
+        selectedDistinctKeys = ({})
         if (columnFilterText) columnFilterText.text = ""
+        if (filterModeCombo) filterModeCombo.currentIndex = 1
         applyView()
     }
 
@@ -395,7 +516,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.5 chargé")
+        console.log("QField Table v0.5.6 chargé")
     }
 
     Connections {
@@ -467,7 +588,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.5")
+        title: qsTr("QField Table — v0.5.6")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1500)
         height: Math.min(parent ? parent.height - 24 : 750, 980)
@@ -518,27 +639,41 @@ Item {
                                  : qsTr("Choisir un champ…")
                     onActivated: {
                         plugin.filterColumn = currentIndex
+                        if (plugin.filterMode === "values") plugin.rebuildDistinctValues()
                         plugin.applyView()
                     }
                 }
                 ComboBox {
                     id: filterModeCombo
-                    Layout.preferredWidth: 150
-                    model: [qsTr("Contient"), qsTr("Égale"), qsTr("Est vide"), qsTr("N'est pas vide")]
+                    Layout.preferredWidth: 170
+                    model: [qsTr("Valeurs distinctes…"), qsTr("Contient"), qsTr("Égale"), qsTr("Est vide"), qsTr("N'est pas vide")]
+                    currentIndex: 1
                     onActivated: {
-                        plugin.filterMode = currentIndex === 1 ? "equals" : currentIndex === 2 ? "empty" : currentIndex === 3 ? "notempty" : "contains"
-                        plugin.applyView()
+                        if (currentIndex === 0) {
+                            plugin.openDistinctFilter()
+                        } else {
+                            plugin.filterMode = currentIndex === 2 ? "equals" : currentIndex === 3 ? "empty" : currentIndex === 4 ? "notempty" : "contains"
+                            plugin.applyView()
+                        }
                     }
                 }
                 TextField {
                     id: columnFilterText
                     Layout.fillWidth: true
+                    visible: plugin.filterMode !== "values"
                     enabled: plugin.filterMode === "contains" || plugin.filterMode === "equals"
                     placeholderText: qsTr("Valeur à rechercher…")
                     onTextChanged: {
                         plugin.filterText = text
                         searchTimer.restart()
                     }
+                }
+                Button {
+                    visible: plugin.filterMode === "values"
+                    Layout.fillWidth: true
+                    text: qsTr("%1 valeur(s) sélectionnée(s) — %2 résultat(s)")
+                          .arg(plugin.selectedDistinctCount()).arg(plugin.filteredRows.length)
+                    onClicked: distinctFilterDialog.open()
                 }
                 Button { text: qsTr("Effacer"); onClicked: plugin.clearColumnFilter() }
             }
@@ -954,4 +1089,100 @@ Item {
             }
         }
     }
+
+    QfDialog {
+        id: distinctFilterDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: plugin.filterColumn >= 0 && plugin.filterColumn < plugin.columns.length
+               ? qsTr("Filtrer — %1").arg(plugin.columns[plugin.filterColumn].alias || plugin.columns[plugin.filterColumn].fieldName)
+               : qsTr("Valeurs distinctes")
+        standardButtons: Dialog.NoButton
+        width: Math.min(parent ? parent.width - 60 : 560, 620)
+        height: Math.min(parent ? parent.height - 60 : 650, 760)
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 8
+
+            TextField {
+                id: distinctSearchField
+                Layout.fillWidth: true
+                placeholderText: qsTr("Rechercher dans les valeurs…")
+                onTextChanged: {
+                    plugin.distinctSearchText = text
+                    plugin.filterDistinctList()
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: qsTr("Tout sélectionner"); onClicked: plugin.setAllDistinctChecked(true) }
+                Button { text: qsTr("Aucun"); onClicked: plugin.setAllDistinctChecked(false) }
+                Item { Layout.fillWidth: true }
+                Label {
+                    text: qsTr("%1 sélectionnée(s) — %2 résultat(s) sur %3 chargé(s)")
+                          .arg(plugin.selectedDistinctCount()).arg(plugin.filteredRows.length).arg(plugin.flatRows.length)
+                    font.bold: true
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
+
+            ListView {
+                id: distinctListView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: plugin.visibleDistinctValues
+                spacing: 2
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+
+                delegate: Rectangle {
+                    required property var modelData
+                    width: distinctListView.width
+                    height: 42
+                    color: index % 2 ? "#f6f6f6" : "transparent"
+                    border.width: 1
+                    border.color: Theme.lightGray
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        CheckBox {
+                            checked: modelData.checked
+                            onToggled: plugin.setDistinctChecked(modelData.key, checked)
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: modelData.label
+                            elide: Text.ElideRight
+                            ToolTip.visible: valueMouse.containsMouse
+                            ToolTip.text: modelData.label
+                            MouseArea { id: valueMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+                        }
+                        Label {
+                            text: String(modelData.count)
+                            font.bold: true
+                            horizontalAlignment: Text.AlignRight
+                            Layout.preferredWidth: 70
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Comptages calculés sur les %1 enregistrements chargés.").arg(plugin.flatRows.length)
+                    opacity: 0.65
+                }
+                Button { text: qsTr("Fermer"); onClicked: distinctFilterDialog.close() }
+            }
+        }
+    }
+
 }
