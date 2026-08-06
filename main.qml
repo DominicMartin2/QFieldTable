@@ -82,12 +82,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.3 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.4 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.3 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.4 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -143,7 +143,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.3 iterator: " + error)
+            console.log("QField Table v0.5.4 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -395,7 +395,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.3 chargé")
+        console.log("QField Table v0.5.4 chargé")
     }
 
     Connections {
@@ -467,7 +467,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.3")
+        title: qsTr("QField Table — v0.5.4")
         standardButtons: Dialog.Close
         width: Math.min(parent ? parent.width - 24 : 900, 1500)
         height: Math.min(parent ? parent.height - 24 : 750, 980)
@@ -870,7 +870,7 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? 132 : 44
+                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? 190 : 44
                 color: "#fafafa"
                 border.width: 1
                 border.color: Theme.lightGray
@@ -904,21 +904,34 @@ Item {
                         }
                     }
 
-                    TextArea {
-                        id: fullValueArea
+                    ScrollView {
+                        id: fullValueScroll
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         visible: plugin.selectedFeatureId.length > 0
-                        readOnly: true
-                        selectByMouse: true
-                        wrapMode: TextEdit.Wrap
-                        text: plugin.selectedCellValue
-                        placeholderText: qsTr("Valeur vide")
-                        background: Rectangle {
-                            color: "white"
-                            border.width: 1
-                            border.color: Theme.lightGray
-                            radius: 2
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                        TextArea {
+                            id: fullValueArea
+                            width: fullValueScroll.availableWidth
+                            readOnly: true
+                            selectByMouse: true
+                            wrapMode: TextEdit.Wrap
+                            text: plugin.selectedCellValue
+                            placeholderText: qsTr("Valeur vide")
+                            padding: 10
+                            topPadding: 10
+                            bottomPadding: 10
+                            leftPadding: 10
+                            rightPadding: 10
+                            background: Rectangle {
+                                color: "white"
+                                border.width: 1
+                                border.color: Theme.lightGray
+                                radius: 2
+                            }
                         }
                     }
 
