@@ -42,6 +42,9 @@ Item {
     property string selectedCellFieldName: ""
     property string selectedCellValue: ""
     property int selectedCellColumn: -1
+    property real inspectorHeight: 190
+    property real inspectorMinHeight: 105
+    property var pendingDistinctKeys: ({})
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -86,12 +89,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.6 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.7 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.6 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.7 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -132,6 +135,7 @@ Item {
         selectedCellFieldName = ""
         selectedCellValue = ""
         selectedCellColumn = -1
+        pendingDistinctKeys = ({})
         if (searchField) searchField.text = ""
         if (columnFilterText) columnFilterText.text = ""
     }
@@ -151,7 +155,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.6 iterator: " + error)
+            console.log("QField Table v0.5.7 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -402,13 +406,91 @@ Item {
         return count
     }
 
+    function cloneSelection(source) {
+        var copy = ({})
+        for (var key in source) copy[key] = source[key] === true
+        return copy
+    }
+
+    function pendingDistinctCount() {
+        var count = 0
+        for (var key in pendingDistinctKeys) if (pendingDistinctKeys[key] === true) count++
+        return count
+    }
+
+    function pendingResultCount() {
+        if (filterColumn < 0 || filterColumn >= columns.length) return flatRows.length
+        var term = searchField ? String(searchField.text).toLowerCase().trim() : ""
+        var count = 0
+        for (var r = 0; r < flatRows.length; ++r) {
+            var row = flatRows[r]
+            var globalMatch = term.length === 0 || String(row.featureId).toLowerCase().indexOf(term) >= 0
+            if (!globalMatch) {
+                for (var c = 0; c < row.values.length; ++c) {
+                    if (String(row.values[c]).toLowerCase().indexOf(term) >= 0) { globalMatch = true; break }
+                }
+            }
+            if (globalMatch && pendingDistinctKeys[distinctKey(row.values[filterColumn])] === true) count++
+        }
+        return count
+    }
+
+    function updatePendingDistinct(key, checked) {
+        var copy = cloneSelection(pendingDistinctKeys)
+        copy[key] = checked
+        pendingDistinctKeys = copy
+    }
+
+    function setAllPendingDistinct(checked) {
+        var copy = ({})
+        for (var i = 0; i < distinctValues.length; ++i) copy[distinctValues[i].key] = checked
+        pendingDistinctKeys = copy
+    }
+
+    function invertPendingDistinct() {
+        var copy = ({})
+        for (var i = 0; i < distinctValues.length; ++i) {
+            var key = distinctValues[i].key
+            copy[key] = pendingDistinctKeys[key] !== true
+        }
+        pendingDistinctKeys = copy
+    }
+
+    function applyPendingDistinct() {
+        selectedDistinctKeys = cloneSelection(pendingDistinctKeys)
+        var updated = []
+        for (var i = 0; i < distinctValues.length; ++i) {
+            var item = distinctValues[i]
+            updated.push({
+                "key": item.key, "value": item.value, "label": item.label,
+                "count": item.count, "checked": selectedDistinctKeys[item.key] === true
+            })
+        }
+        distinctValues = updated
+        filterDistinctList()
+        applyView()
+        distinctFilterDialog.close()
+    }
+
+    function cancelPendingDistinct() {
+        pendingDistinctKeys = cloneSelection(selectedDistinctKeys)
+        distinctFilterDialog.close()
+    }
+
     function openDistinctFilter() {
         if (filterColumn < 0 || filterColumn >= columns.length) return
         filterMode = "values"
         distinctSearchText = ""
         rebuildDistinctValues()
+        pendingDistinctKeys = cloneSelection(selectedDistinctKeys)
         distinctFilterDialog.open()
-        applyView()
+    }
+
+    function reopenDistinctFilter() {
+        pendingDistinctKeys = cloneSelection(selectedDistinctKeys)
+        distinctSearchText = ""
+        filterDistinctList()
+        distinctFilterDialog.open()
     }
 
     function compareValues(a, b) {
@@ -516,7 +598,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.6 chargé")
+        console.log("QField Table v0.5.7 chargé")
     }
 
     Connections {
@@ -588,15 +670,14 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.6")
+        title: qsTr("QField Table — v0.5.7")
         standardButtons: Dialog.Close
-        width: Math.min(parent ? parent.width - 24 : 900, 1500)
-        height: Math.min(parent ? parent.height - 24 : 750, 980)
+        width: parent ? Math.max(900, parent.width * 0.96) : 1400
+        height: parent ? Math.max(700, parent.height * 0.94) : 900
         x: parent ? (parent.width - width) / 2 : 0
         y: parent ? (parent.height - height) / 2 : 0
-
         contentItem: ColumnLayout {
-            spacing: 7
+            spacing: 5
 
             RowLayout {
                 Layout.fillWidth: true
@@ -673,7 +754,7 @@ Item {
                     Layout.fillWidth: true
                     text: qsTr("%1 valeur(s) sélectionnée(s) — %2 résultat(s)")
                           .arg(plugin.selectedDistinctCount()).arg(plugin.filteredRows.length)
-                    onClicked: distinctFilterDialog.open()
+                    onClicked: plugin.reopenDistinctFilter()
                 }
                 Button { text: qsTr("Effacer"); onClicked: plugin.clearColumnFilter() }
             }
@@ -733,7 +814,7 @@ Item {
             Item {
                 id: fixedHeader
                 Layout.fillWidth: true
-                Layout.preferredHeight: 58
+                Layout.preferredHeight: 52
                 clip: true
 
                 Rectangle { anchors.fill: parent; color: "#f8f8f8" }
@@ -1004,8 +1085,43 @@ Item {
             }
 
             Rectangle {
+                id: inspectorHandle
                 Layout.fillWidth: true
-                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? 190 : 44
+                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? 12 : 0
+                visible: plugin.selectedFeatureId.length > 0
+                color: "transparent"
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 90
+                    height: 4
+                    radius: 2
+                    color: Theme.lightGray
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.SizeVerCursor
+                    property real startY: 0
+                    property real startHeight: 0
+                    onPressed: {
+                        var point = inspectorHandle.mapToItem(browserDialog.contentItem, mouse.x, mouse.y)
+                        startY = point.y
+                        startHeight = plugin.inspectorHeight
+                    }
+                    onPositionChanged: {
+                        if (!pressed) return
+                        var point = inspectorHandle.mapToItem(browserDialog.contentItem, mouse.x, mouse.y)
+                        var maximum = Math.max(plugin.inspectorMinHeight, browserDialog.height * 0.55)
+                        plugin.inspectorHeight = Math.max(plugin.inspectorMinHeight,
+                                                          Math.min(maximum, startHeight - (point.y - startY)))
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? plugin.inspectorHeight : 44
                 color: "#fafafa"
                 border.width: 1
                 border.color: Theme.lightGray
@@ -1098,10 +1214,11 @@ Item {
                ? qsTr("Filtrer — %1").arg(plugin.columns[plugin.filterColumn].alias || plugin.columns[plugin.filterColumn].fieldName)
                : qsTr("Valeurs distinctes")
         standardButtons: Dialog.NoButton
-        width: Math.min(parent ? parent.width - 60 : 560, 620)
-        height: Math.min(parent ? parent.height - 60 : 650, 760)
+        width: parent ? Math.max(700, parent.width * 0.72) : 820
+        height: parent ? Math.max(620, parent.height * 0.82) : 720
         x: parent ? (parent.width - width) / 2 : 0
         y: parent ? (parent.height - height) / 2 : 0
+        onRejected: plugin.pendingDistinctKeys = plugin.cloneSelection(plugin.selectedDistinctKeys)
 
         contentItem: ColumnLayout {
             spacing: 8
@@ -1118,12 +1235,13 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Button { text: qsTr("Tout sélectionner"); onClicked: plugin.setAllDistinctChecked(true) }
-                Button { text: qsTr("Aucun"); onClicked: plugin.setAllDistinctChecked(false) }
+                Button { text: qsTr("Tout"); onClicked: plugin.setAllPendingDistinct(true) }
+                Button { text: qsTr("Aucun"); onClicked: plugin.setAllPendingDistinct(false) }
+                Button { text: qsTr("Inverser"); onClicked: plugin.invertPendingDistinct() }
                 Item { Layout.fillWidth: true }
                 Label {
                     text: qsTr("%1 sélectionnée(s) — %2 résultat(s) sur %3 chargé(s)")
-                          .arg(plugin.selectedDistinctCount()).arg(plugin.filteredRows.length).arg(plugin.flatRows.length)
+                          .arg(plugin.pendingDistinctCount()).arg(plugin.pendingResultCount()).arg(plugin.flatRows.length)
                     font.bold: true
                 }
             }
@@ -1152,8 +1270,8 @@ Item {
                         anchors.leftMargin: 8
                         anchors.rightMargin: 8
                         CheckBox {
-                            checked: modelData.checked
-                            onToggled: plugin.setDistinctChecked(modelData.key, checked)
+                            checked: plugin.pendingDistinctKeys[modelData.key] === true
+                            onToggled: plugin.updatePendingDistinct(modelData.key, checked)
                         }
                         Label {
                             Layout.fillWidth: true
@@ -1180,7 +1298,8 @@ Item {
                     text: qsTr("Comptages calculés sur les %1 enregistrements chargés.").arg(plugin.flatRows.length)
                     opacity: 0.65
                 }
-                Button { text: qsTr("Fermer"); onClicked: distinctFilterDialog.close() }
+                Button { text: qsTr("Annuler"); onClicked: plugin.cancelPendingDistinct() }
+                Button { text: qsTr("Appliquer"); onClicked: plugin.applyPendingDistinct() }
             }
         }
     }
