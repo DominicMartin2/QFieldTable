@@ -104,12 +104,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.9.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.9.2 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.9.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.9.2 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -181,7 +181,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.9.1 iterator: " + error)
+            console.log("QField Table v0.5.9.2 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -304,7 +304,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.5.9.1 configuration invalide: " + e)
+            console.log("QField Table v0.5.9.2 configuration invalide: " + e)
             return ({})
         }
     }
@@ -940,7 +940,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.9.1 chargé")
+        console.log("QField Table v0.5.9.2 chargé")
     }
 
     Connections {
@@ -1691,7 +1691,7 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Maintenez la poignée ≡, puis glissez pour déplacer un champ. Les flèches restent disponibles. La configuration est enregistrée automatiquement pour cette couche et ce projet.")
+                text: qsTr("Faites glisser la poignée ≡ pour déplacer un champ. Les flèches restent disponibles. La configuration est enregistrée automatiquement pour cette couche et ce projet.")
                 opacity: 0.7
                 wrapMode: Text.WordWrap
             }
@@ -1753,25 +1753,41 @@ Item {
                                 color: Theme.mainColor
                             }
                             MouseArea {
+                                id: columnDragArea
                                 anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton
                                 cursorShape: Qt.SizeVerCursor
-                                onPressAndHold: {
+                                preventStealing: true
+                                propagateComposedEvents: false
+
+                                function updateDropPosition(mouseX, mouseY) {
+                                    var point = mapToItem(columnManagerList.contentItem, mouseX, mouseY)
+                                    plugin.updateColumnDrag(point.y)
+                                }
+
+                                onPressed: function(mouse) {
+                                    mouse.accepted = true
                                     plugin.beginColumnDrag(modelData.originalIndex)
                                     if (plugin.draggedColumnOriginalIndex >= 0)
-                                        plugin.updateColumnDrag(columnManagerRow.y + mouse.y)
+                                        updateDropPosition(mouse.x, mouse.y)
                                 }
-                                onPositionChanged: {
-                                    if (plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex))
-                                        plugin.updateColumnDrag(columnManagerRow.y + mouse.y)
+                                onPositionChanged: function(mouse) {
+                                    if (plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex)) {
+                                        mouse.accepted = true
+                                        updateDropPosition(mouse.x, mouse.y)
+                                    }
                                 }
-                                onReleased: {
-                                    if (plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex))
+                                onReleased: function(mouse) {
+                                    mouse.accepted = true
+                                    if (plugin.draggedColumnOriginalIndex === Number(modelData.originalIndex)) {
+                                        updateDropPosition(mouse.x, mouse.y)
                                         plugin.finishColumnDrag()
+                                    }
                                 }
                                 onCanceled: plugin.cancelColumnDrag()
                             }
                             ToolTip.visible: dragHandleHover.containsMouse
-                            ToolTip.text: qsTr("Appui long, puis glisser")
+                            ToolTip.text: qsTr("Glisser pour déplacer")
                             MouseArea { id: dragHandleHover; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
                         }
 
