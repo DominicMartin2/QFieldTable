@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.5.9.2
-description=Table d'attributs pour QField avec recherche, filtres, inspection et glisser-déposer et conservation de session des colonnes.
+version=0.5.9.3
+description=Table d'attributs pour QField avec filtres, gestion persistante des colonnes, glisser-déposer et inspecteur repliable.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

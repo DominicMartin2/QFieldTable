@@ -44,6 +44,7 @@ Item {
     property int selectedCellColumn: -1
     property real inspectorHeight: 190
     property real inspectorMinHeight: 105
+    property bool inspectorCollapsed: false
     property var pendingDistinctKeys: ({})
     // Gestion des colonnes affichées. Les indices font référence à columns/row.values.
     property var displayedColumns: []
@@ -104,12 +105,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.9.2 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.9.3 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.9.2 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.9.3 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -150,6 +151,7 @@ Item {
         selectedCellFieldName = ""
         selectedCellValue = ""
         selectedCellColumn = -1
+        inspectorCollapsed = false
         pendingDistinctKeys = ({})
         displayedColumns = []
         columnOrder = []
@@ -181,7 +183,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.9.2 iterator: " + error)
+            console.log("QField Table v0.5.9.3 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -304,7 +306,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.5.9.2 configuration invalide: " + e)
+            console.log("QField Table v0.5.9.3 configuration invalide: " + e)
             return ({})
         }
     }
@@ -313,6 +315,24 @@ Item {
         if (index < 0 || index >= columns.length) return ""
         var fieldName = String(columns[index].fieldName || "")
         return fieldName.length > 0 ? fieldName : "__index__" + String(index)
+    }
+
+    function layerConfigurationPropertyKey() {
+        return "qfield_table/view_config_v1"
+    }
+
+    function readLayerConfiguration() {
+        if (!selectedLayer) return null
+        try {
+            var raw = selectedLayer.customProperty(layerConfigurationPropertyKey(), "")
+            if (raw !== undefined && raw !== null && String(raw).length > 0) {
+                var parsed = JSON.parse(String(raw))
+                if (parsed && typeof parsed === "object") return parsed
+            }
+        } catch (e) {
+            console.log("QField Table v0.5.9.3 lecture propriété couche: " + e)
+        }
+        return null
     }
 
     function saveColumnConfiguration() {
@@ -326,13 +346,24 @@ Item {
             if (name.length > 0) orderNames.push(name)
             if (columnVisibility[String(idx)] === false && name.length > 0) hiddenNames.push(name)
         }
-        all[configurationKey()] = {
+        var config = {
             "order": orderNames,
             "hidden": hiddenNames,
             "frozenColumnCount": frozenColumnCount,
-            "inspectorHeight": inspectorHeight
+            "inspectorHeight": inspectorHeight,
+            "inspectorCollapsed": inspectorCollapsed
         }
+        all[configurationKey()] = config
         sessionProjectConfigurations = JSON.stringify(all)
+
+        // Stockage sur la couche: QgsMapLayer.customProperty/setCustomProperty sont
+        // exposés à QML et les propriétés sont enregistrées avec le projet QGIS.
+        try {
+            selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
+            try { qgisProject.setDirty(true) } catch (dirtyError) {}
+        } catch (e) {
+            console.log("QField Table v0.5.9.3 sauvegarde propriété couche: " + e)
+        }
     }
 
     function restoreColumnConfiguration() {
@@ -347,7 +378,8 @@ Item {
         }
 
         var all = parseStoredConfigurations()
-        var saved = all[key]
+        var saved = readLayerConfiguration()
+        if (!saved) saved = all[key]
         if (!saved || !saved.order || !Array.isArray(saved.order)) {
             columnOrder = []
             columnVisibility = ({})
@@ -388,6 +420,8 @@ Item {
             frozenColumnCount = Math.max(0, Math.min(Number(saved.frozenColumnCount), columns.length))
         if (saved.inspectorHeight !== undefined)
             inspectorHeight = Math.max(inspectorMinHeight, Number(saved.inspectorHeight))
+        if (saved.inspectorCollapsed !== undefined)
+            inspectorCollapsed = saved.inspectorCollapsed === true
         restoredConfigurationKey = key
     }
 
@@ -940,7 +974,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.9.2 chargé")
+        console.log("QField Table v0.5.9.3 chargé")
     }
 
     Connections {
@@ -1012,7 +1046,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.9")
+        title: qsTr("QField Table — v0.5.9.3")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1433,8 +1467,8 @@ Item {
             Rectangle {
                 id: inspectorHandle
                 Layout.fillWidth: true
-                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? 12 : 0
-                visible: plugin.selectedFeatureId.length > 0
+                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 && !plugin.inspectorCollapsed ? 12 : 0
+                visible: plugin.selectedFeatureId.length > 0 && !plugin.inspectorCollapsed
                 color: "transparent"
 
                 Rectangle {
@@ -1468,17 +1502,41 @@ Item {
             }
 
             Rectangle {
+                id: inspectorPanel
                 Layout.fillWidth: true
-                Layout.preferredHeight: plugin.selectedFeatureId.length > 0 ? plugin.inspectorHeight : 44
+                Layout.preferredHeight: plugin.selectedFeatureId.length > 0
+                                        ? (plugin.inspectorCollapsed ? 42 : plugin.inspectorHeight)
+                                        : 44
                 color: "#fafafa"
                 border.width: 1
                 border.color: Theme.lightGray
                 radius: 3
 
+                // État replié: garde seulement une petite barre pour rouvrir l'inspecteur.
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    visible: plugin.selectedFeatureId.length > 0 && plugin.inspectorCollapsed
+                    Label {
+                        Layout.fillWidth: true
+                        font.bold: true
+                        text: qsTr("Inspecteur masqué — Entité %1").arg(plugin.selectedFeatureId)
+                        elide: Text.ElideRight
+                    }
+                    Button {
+                        text: qsTr("▸ Afficher l'inspecteur")
+                        onClicked: {
+                            plugin.inspectorCollapsed = false
+                            plugin.saveColumnConfiguration()
+                        }
+                    }
+                }
+
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 8
                     spacing: 5
+                    visible: !plugin.inspectorCollapsed || plugin.selectedFeatureId.length === 0
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -1500,6 +1558,16 @@ Item {
                             text: qsTr("Copier")
                             enabled: plugin.selectedCellValue.length > 0
                             onClicked: plugin.copySelectedValue()
+                        }
+                        Button {
+                            visible: plugin.selectedFeatureId.length > 0
+                            text: "✕"
+                            ToolTip.visible: hovered
+                            ToolTip.text: qsTr("Masquer l'inspecteur")
+                            onClicked: {
+                                plugin.inspectorCollapsed = true
+                                plugin.saveColumnConfiguration()
+                            }
                         }
                     }
 
@@ -1691,7 +1759,7 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Faites glisser la poignée ≡ pour déplacer un champ. Les flèches restent disponibles. La configuration est enregistrée automatiquement pour cette couche et ce projet.")
+                text: qsTr("Faites glisser la poignée ≡ pour déplacer un champ. Les flèches restent disponibles. La fenêtre reprend toujours la configuration actuelle. Cliquez sur Appliquer pour conserver l’ordre et la visibilité pour cette couche et ce projet.")
                 opacity: 0.7
                 wrapMode: Text.WordWrap
             }
