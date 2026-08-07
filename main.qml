@@ -61,6 +61,8 @@ Item {
     property int draggedColumnOriginalIndex: -1
     property int draggedTargetInsertPosition: -1
     property real columnDragIndicatorY: -1
+    // Indique qu’un nouveau projet a été chargé pendant que la fenêtre était fermée.
+    property bool needsProjectRefresh: true
 
     function layerIsVector(layer) {
         if (!layer) return false
@@ -105,12 +107,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.9.3 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.5.9.4 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.9.3 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.5.9.4 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -183,7 +185,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.9.3 iterator: " + error)
+            console.log("QField Table v0.5.9.4 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -306,7 +308,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.5.9.3 configuration invalide: " + e)
+            console.log("QField Table v0.5.9.4 configuration invalide: " + e)
             return ({})
         }
     }
@@ -330,7 +332,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.5.9.3 lecture propriété couche: " + e)
+            console.log("QField Table v0.5.9.4 lecture propriété couche: " + e)
         }
         return null
     }
@@ -362,7 +364,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.5.9.3 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.5.9.4 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -968,18 +970,33 @@ Item {
     }
 
     function openBrowser() {
-        refreshLayers()
+        // Une simple fermeture du dialogue ne détruit pas le plugin.
+        // On conserve donc le modèle déjà construit afin d’éviter de vider
+        // les colonnes alors que les délégués du FeatureModel existent encore.
+        if (needsProjectRefresh || !selectedLayer || vectorLayers.length === 0 || columns.length === 0 || flatRows.length === 0) {
+            needsProjectRefresh = false
+            refreshLayers()
+        }
         browserDialog.open()
     }
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.9.3 chargé")
+        console.log("QField Table v0.5.9.4 chargé")
     }
 
     Connections {
         target: iface
-        function onLoadProjectEnded() { if (browserDialog.visible) refreshLayers() }
+        function onLoadProjectEnded() {
+            // Si le projet change, le cache courant n’est plus valide.
+            // On recharge immédiatement seulement lorsque la table est ouverte;
+            // sinon le prochain clic sur l’icône fera le rechargement.
+            needsProjectRefresh = true
+            if (browserDialog.visible) {
+                needsProjectRefresh = false
+                refreshLayers()
+            }
+        }
     }
 
     Timer {
@@ -1046,7 +1063,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.9.3")
+        title: qsTr("QField Table — v0.5.9.4")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1065,7 +1082,13 @@ Item {
                     textRole: "label"
                     onActivated: plugin.selectLayer(currentIndex)
                 }
-                Button { text: qsTr("Actualiser"); onClicked: plugin.refreshLayers() }
+                Button {
+                    text: qsTr("Actualiser")
+                    onClicked: {
+                        plugin.needsProjectRefresh = false
+                        plugin.refreshLayers()
+                    }
+                }
             }
 
             RowLayout {
