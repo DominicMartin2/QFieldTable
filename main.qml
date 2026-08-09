@@ -13,6 +13,12 @@ Item {
     property var mainWindow: iface.mainWindow()
     property var mapCanvas: iface.mapCanvas()
     property var dashBoard: iface.findItemByObjectName("dashBoard")
+    // Formulaire natif de QField. On le réutilise au lieu de recréer un formulaire dans le plugin.
+    property var overlayFeatureFormDrawer: iface.findItemByObjectName("overlayFeatureFormDrawer")
+    property bool waitingForFeatureForm: false
+    property string editingFeatureId: ""
+    property real savedTableContentY: 0
+    property real savedTableHorizontalOffset: 0
 
     property var vectorLayers: []
     property var selectedLayer: null
@@ -107,12 +113,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.5.9.4 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.0 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.5.9.4 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.0 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -185,7 +191,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.5.9.4 iterator: " + error)
+            console.log("QField Table v0.6.0 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -308,7 +314,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.5.9.4 configuration invalide: " + e)
+            console.log("QField Table v0.6.0 configuration invalide: " + e)
             return ({})
         }
     }
@@ -332,7 +338,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.5.9.4 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.0 lecture propriété couche: " + e)
         }
         return null
     }
@@ -364,7 +370,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.5.9.4 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.0 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -932,6 +938,107 @@ Item {
         selectedCellValue = formatValue(value)
     }
 
+    function findFreshFeature(featureIdValue) {
+        if (!selectedLayer) return null
+        var wanted = String(featureIdValue)
+        try {
+            var iterator = LayerUtils.createFeatureIterator(selectedLayer)
+            while (iterator.hasNext()) {
+                var feature = iterator.next()
+                if (featureId(feature) === wanted) return feature
+            }
+        } catch (error) {
+            console.log("QField Table v0.6.0 findFreshFeature: " + error)
+        }
+        return null
+    }
+
+    function refreshFeatureRow(featureIdValue) {
+        var freshFeature = findFreshFeature(featureIdValue)
+        if (!freshFeature || columns.length === 0) return
+
+        // Remplace aussi l'objet QgsFeature conservé dans l'aperçu.
+        var featureCopy = previewFeatures.slice(0)
+        for (var p = 0; p < featureCopy.length; ++p) {
+            if (featureId(featureCopy[p]) === String(featureIdValue)) {
+                featureCopy[p] = freshFeature
+                previewFeatures = featureCopy
+                break
+            }
+        }
+
+        var newValues = []
+        for (var c = 0; c < columns.length; ++c)
+            newValues.push(readAttribute(freshFeature, columns[c]))
+
+        var rowsCopy = flatRows.slice(0)
+        var replaced = false
+        for (var r = 0; r < rowsCopy.length; ++r) {
+            if (String(rowsCopy[r].featureId) === String(featureIdValue)) {
+                rowsCopy[r] = { "featureId": String(featureIdValue), "values": newValues }
+                replaced = true
+                break
+            }
+        }
+        if (replaced) flatRows = rowsCopy
+        applyView()
+
+        // Actualise aussi la valeur actuellement affichée dans l'inspecteur.
+        if (selectedFeatureId === String(featureIdValue) && selectedCellColumn >= 0 && selectedCellColumn < newValues.length)
+            selectedCellValue = formatValue(newValues[selectedCellColumn])
+    }
+
+    function openFeatureForm(featureIdValue) {
+        if (!selectedLayer) return
+        var idText = String(featureIdValue || selectedFeatureId)
+        if (!idText || idText.length === 0) return
+
+        var freshFeature = findFreshFeature(idText)
+        if (!freshFeature) {
+            diagnosticMessage = qsTr("Impossible de retrouver l’entité %1 dans la couche.").arg(idText)
+            return
+        }
+
+        if (!overlayFeatureFormDrawer) {
+            diagnosticMessage = qsTr("Le formulaire natif de QField n’est pas accessible dans cette version.")
+            return
+        }
+
+        try {
+            savedTableHorizontalOffset = horizontalOffset
+            try { savedTableContentY = rowsFlick.contentY } catch (scrollError) { savedTableContentY = 0 }
+            editingFeatureId = idText
+            waitingForFeatureForm = true
+
+            // Le FeatureModel du tiroir accepte explicitement currentLayer et feature.
+            overlayFeatureFormDrawer.featureModel.currentLayer = selectedLayer
+            try { overlayFeatureFormDrawer.featureModel.project = qgisProject } catch (projectError) {}
+            overlayFeatureFormDrawer.featureModel.feature = freshFeature
+            overlayFeatureFormDrawer.state = "Edit"
+
+            // Libère la fenêtre de la table pendant que le formulaire natif est affiché.
+            browserDialog.close()
+            overlayFeatureFormDrawer.open()
+        } catch (error) {
+            waitingForFeatureForm = false
+            diagnosticMessage = qsTr("Impossible d’ouvrir le formulaire : %1").arg(String(error))
+            console.log("QField Table v0.6.0 openFeatureForm: " + error)
+            browserDialog.open()
+        }
+    }
+
+    function finishFeatureFormRoundTrip() {
+        if (!waitingForFeatureForm) return
+        var idText = editingFeatureId
+        waitingForFeatureForm = false
+        editingFeatureId = ""
+
+        refreshFeatureRow(idText)
+        horizontalOffset = savedTableHorizontalOffset
+        browserDialog.open()
+        restoreTablePositionTimer.restart()
+    }
+
     function copySelectedValue() {
         if (!selectedCellValue || selectedCellValue.length === 0) return
         try {
@@ -982,7 +1089,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.5.9.4 chargé")
+        console.log("QField Table v0.6.0 chargé")
     }
 
     Connections {
@@ -996,6 +1103,25 @@ Item {
                 needsProjectRefresh = false
                 refreshLayers()
             }
+        }
+    }
+
+    Timer {
+        id: restoreTablePositionTimer
+        interval: 80
+        repeat: false
+        onTriggered: {
+            plugin.horizontalOffset = plugin.savedTableHorizontalOffset
+            try { rowsFlick.contentY = plugin.savedTableContentY } catch (e) {}
+        }
+    }
+
+    Connections {
+        target: plugin.overlayFeatureFormDrawer
+        ignoreUnknownSignals: true
+        function onOpenedChanged() {
+            if (plugin.waitingForFeatureForm && plugin.overlayFeatureFormDrawer && !plugin.overlayFeatureFormDrawer.opened)
+                plugin.finishFeatureFormRoundTrip()
         }
     }
 
@@ -1063,7 +1189,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.5.9.4")
+        title: qsTr("QField Table — v0.6.0")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1381,6 +1507,10 @@ Item {
                                             hoverEnabled: true
                                             pressAndHoldInterval: 500
                                             onClicked: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
+                                            onDoubleClicked: {
+                                                plugin.selectCell(modelData.featureId, -1, modelData.featureId)
+                                                plugin.openFeatureForm(modelData.featureId)
+                                            }
                                             onPressAndHold: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
                                         }
                                     }
@@ -1412,6 +1542,10 @@ Item {
                                                 hoverEnabled: true
                                                 pressAndHoldInterval: 500
                                                 onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                                onDoubleClicked: {
+                                                    plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                                    plugin.openFeatureForm(modelData.featureId)
+                                                }
                                                 onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                             }
                                         }
@@ -1455,6 +1589,10 @@ Item {
                                                     hoverEnabled: true
                                                     pressAndHoldInterval: 500
                                                     onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                                onDoubleClicked: {
+                                                    plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                                    plugin.openFeatureForm(modelData.featureId)
+                                                }
                                                     onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                                 }
                                             }
@@ -1575,6 +1713,13 @@ Item {
                             visible: plugin.selectedCellFieldName.length > 0
                             text: plugin.selectedCellFieldName
                             opacity: 0.65
+                        }
+                        Button {
+                            visible: plugin.selectedFeatureId.length > 0
+                            text: qsTr("Modifier")
+                            ToolTip.visible: hovered
+                            ToolTip.text: qsTr("Ouvrir le formulaire QField de cette entité")
+                            onClicked: plugin.openFeatureForm(plugin.selectedFeatureId)
                         }
                         Button {
                             visible: plugin.selectedFeatureId.length > 0
