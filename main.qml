@@ -13,18 +13,19 @@ Item {
     property var mainWindow: iface.mainWindow()
     property var mapCanvas: iface.mapCanvas()
     property var dashBoard: iface.findItemByObjectName("dashBoard")
-    // Formulaire natif de QField. On le réutilise au lieu de recréer un formulaire dans le plugin.
-    property var overlayFeatureFormDrawer: iface.findItemByObjectName("overlayFeatureFormDrawer")
-    property bool waitingForFeatureForm: false
-    property string editingFeatureId: ""
-    property real savedTableContentY: 0
-    property real savedTableHorizontalOffset: 0
 
     property var vectorLayers: []
     property var selectedLayer: null
     property var previewFeatures: []
     property int previewLimit: 100
     property int totalFeatureCount: 0
+    property int matchedFeatureCount: 0
+    property bool loadAllRecords: false
+    property string activePreFilterExpression: ""
+    property int preFilterColumn: -1
+    property string preFilterMode: "contains"
+    property string preFilterText: ""
+    property bool refreshAfterNativeEdit: false
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
@@ -113,12 +114,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.2 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.2 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -140,6 +141,12 @@ Item {
     function resetData() {
         previewFeatures = []
         totalFeatureCount = 0
+        matchedFeatureCount = 0
+        loadAllRecords = false
+        activePreFilterExpression = ""
+        preFilterColumn = -1
+        preFilterMode = "contains"
+        preFilterText = ""
         columns = []
         flatRows = []
         filteredRows = []
@@ -188,15 +195,108 @@ Item {
                 totalFeatureCount++
                 if (found.length < previewLimit) found.push(feature)
             }
+            matchedFeatureCount = totalFeatureCount
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.1 iterator: " + error)
+            console.log("QField Table v0.6.2 iterator: " + error)
         }
 
-        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
-                .arg(layerName(selectedLayer)).arg(totalFeatureCount).arg(previewFeatures.length)
+        updateLoadStatus()
         schemaPollTimer.restart()
+    }
+
+    function updateLoadStatus() {
+        if (!selectedLayer) return
+        var modeText = activePreFilterExpression.length > 0
+                ? qsTr("préfiltre : %1 correspondance(s)").arg(matchedFeatureCount)
+                : (loadAllRecords ? qsTr("tous les enregistrements") : qsTr("aperçu"))
+        statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s) — %4")
+                .arg(layerName(selectedLayer)).arg(totalFeatureCount).arg(previewFeatures.length).arg(modeText)
+    }
+
+    function reloadFeaturesOnly() {
+        if (!selectedLayer) return
+        previewFeatures = []
+        flatRows = []
+        filteredRows = []
+        selectedFeatureId = ""
+        selectedCellColumn = -1
+        selectedCellAlias = ""
+        selectedCellFieldName = ""
+        selectedCellValue = ""
+        diagnosticMessage = ""
+
+        var found = []
+        var count = 0
+        try {
+            var iterator = activePreFilterExpression.length > 0
+                    ? LayerUtils.createFeatureIteratorFromExpression(selectedLayer, activePreFilterExpression)
+                    : LayerUtils.createFeatureIterator(selectedLayer)
+            while (iterator.hasNext()) {
+                var feature = iterator.next()
+                count++
+                if (loadAllRecords || found.length < previewLimit) found.push(feature)
+            }
+            matchedFeatureCount = count
+            previewFeatures = found
+        } catch (error) {
+            diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
+            console.log("QField Table v0.6.2 filtered iterator: " + error)
+        }
+        updateLoadStatus()
+        if (columns.length > 0) rowBuildTimer.restart()
+        else schemaPollTimer.restart()
+    }
+
+    function expressionFieldName(name) {
+        return '"' + String(name).replace(/"/g, '""') + '"'
+    }
+
+    function expressionString(value) {
+        return "'" + String(value).replace(/'/g, "''") + "'"
+    }
+
+    function buildPreFilterExpression() {
+        if (preFilterColumn < 0 || preFilterColumn >= columns.length) return ""
+        var fieldName = columns[preFilterColumn].fieldName
+        if (!fieldName || fieldName.length === 0) return ""
+        var field = expressionFieldName(fieldName)
+        var text = String(preFilterText || "").trim()
+        if (preFilterMode === "empty")
+            return "(" + field + " IS NULL OR trim(to_string(" + field + ")) = '')"
+        if (preFilterMode === "notempty")
+            return "(" + field + " IS NOT NULL AND trim(to_string(" + field + ")) <> '')"
+        if (text.length === 0) return ""
+        if (preFilterMode === "equals")
+            return "to_string(" + field + ") = " + expressionString(text)
+        return "to_string(" + field + ") ILIKE " + expressionString("%" + text + "%")
+    }
+
+    function loadFirstHundred() {
+        loadAllRecords = false
+        activePreFilterExpression = ""
+        reloadFeaturesOnly()
+        loadDialog.close()
+    }
+
+    function loadAllFeatures() {
+        loadAllRecords = true
+        activePreFilterExpression = ""
+        reloadFeaturesOnly()
+        loadDialog.close()
+    }
+
+    function loadWithPreFilter() {
+        var expression = buildPreFilterExpression()
+        if (expression.length === 0) {
+            diagnosticMessage = qsTr("Choisissez un champ et une valeur de préfiltre.")
+            return
+        }
+        loadAllRecords = true
+        activePreFilterExpression = expression
+        reloadFeaturesOnly()
+        loadDialog.close()
     }
 
     function featureId(feature) {
@@ -314,7 +414,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.1 configuration invalide: " + e)
+            console.log("QField Table v0.6.2 configuration invalide: " + e)
             return ({})
         }
     }
@@ -338,7 +438,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.1 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.2 lecture propriété couche: " + e)
         }
         return null
     }
@@ -370,7 +470,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.1 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.2 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -938,128 +1038,26 @@ Item {
         selectedCellValue = formatValue(value)
     }
 
-    function findFreshFeature(featureIdValue) {
-        if (!selectedLayer) return null
-        var wanted = String(featureIdValue)
-        try {
-            var iterator = LayerUtils.createFeatureIterator(selectedLayer)
-            while (iterator.hasNext()) {
-                var feature = iterator.next()
-                if (featureId(feature) === wanted) return feature
-            }
-        } catch (error) {
-            console.log("QField Table v0.6.1 findFreshFeature: " + error)
-        }
-        return null
-    }
-
-    function refreshFeatureRow(featureIdValue) {
-        var freshFeature = findFreshFeature(featureIdValue)
-        if (!freshFeature || columns.length === 0) return
-
-        // Remplace aussi l'objet QgsFeature conservé dans l'aperçu.
-        var featureCopy = previewFeatures.slice(0)
-        for (var p = 0; p < featureCopy.length; ++p) {
-            if (featureId(featureCopy[p]) === String(featureIdValue)) {
-                featureCopy[p] = freshFeature
-                previewFeatures = featureCopy
-                break
-            }
-        }
-
-        var newValues = []
-        for (var c = 0; c < columns.length; ++c)
-            newValues.push(readAttribute(freshFeature, columns[c]))
-
-        var rowsCopy = flatRows.slice(0)
-        var replaced = false
-        for (var r = 0; r < rowsCopy.length; ++r) {
-            if (String(rowsCopy[r].featureId) === String(featureIdValue)) {
-                rowsCopy[r] = { "featureId": String(featureIdValue), "values": newValues }
-                replaced = true
-                break
-            }
-        }
-        if (replaced) flatRows = rowsCopy
-        applyView()
-
-        // Actualise aussi la valeur actuellement affichée dans l'inspecteur.
-        if (selectedFeatureId === String(featureIdValue) && selectedCellColumn >= 0 && selectedCellColumn < newValues.length)
-            selectedCellValue = formatValue(newValues[selectedCellColumn])
-    }
-
-    function openFeatureForm(featureIdValue) {
+    function handOffToNativeQField(featureIdValue) {
         if (!selectedLayer) return
         var idText = String(featureIdValue || selectedFeatureId)
         if (!idText || idText.length === 0) return
-
-        var freshFeature = findFreshFeature(idText)
-        if (!freshFeature) {
-            diagnosticMessage = qsTr("Impossible de retrouver l’entité %1 dans la couche.").arg(idText)
+        var numericId = Number(idText)
+        if (isNaN(numericId)) {
+            diagnosticMessage = qsTr("Identifiant d’entité invalide : %1").arg(idText)
             return
         }
-
-        if (!overlayFeatureFormDrawer) {
-            diagnosticMessage = qsTr("Le formulaire natif de QField n’est pas accessible dans cette version.")
+        try {
+            LayerUtils.selectFeaturesInLayer(selectedLayer, [numericId])
+        } catch (selectionError) {
+            diagnosticMessage = qsTr("Impossible de sélectionner l’entité : %1").arg(String(selectionError))
             return
         }
-
+        refreshAfterNativeEdit = true
+        browserDialog.close()
         try {
-            savedTableHorizontalOffset = horizontalOffset
-            try { savedTableContentY = rowsFlick.contentY } catch (scrollError) { savedTableContentY = 0 }
-            editingFeatureId = idText
-            waitingForFeatureForm = true
-
-            // Le FeatureModel du tiroir accepte explicitement currentLayer et feature.
-            overlayFeatureFormDrawer.featureModel.currentLayer = selectedLayer
-            try { overlayFeatureFormDrawer.featureModel.project = qgisProject } catch (projectError) {}
-            overlayFeatureFormDrawer.featureModel.feature = freshFeature
-            overlayFeatureFormDrawer.state = "Edit"
-
-            // Libère la fenêtre de la table pendant que le formulaire natif est affiché.
-            browserDialog.close()
-            overlayFeatureFormDrawer.open()
-        } catch (error) {
-            waitingForFeatureForm = false
-            diagnosticMessage = qsTr("Impossible d’ouvrir le formulaire : %1").arg(String(error))
-            console.log("QField Table v0.6.1 openFeatureForm: " + error)
-            browserDialog.open()
-        }
-    }
-
-    function finishFeatureFormRoundTrip() {
-        if (!waitingForFeatureForm) return
-        var idText = editingFeatureId
-        waitingForFeatureForm = false
-        editingFeatureId = ""
-
-        refreshFeatureRow(idText)
-        horizontalOffset = savedTableHorizontalOffset
-        browserDialog.open()
-        restoreTablePositionTimer.restart()
-    }
-
-    function saveAndReturnFromFeatureForm() {
-        if (!waitingForFeatureForm || !overlayFeatureFormDrawer || !overlayFeatureFormDrawer.featureForm) return
-        try {
-            overlayFeatureFormDrawer.featureForm.confirm()
-        } catch (error) {
-            diagnosticMessage = qsTr("Impossible d’enregistrer le formulaire : %1").arg(String(error))
-            console.log("QField Table v0.6.1 confirm feature form: " + error)
-        }
-    }
-
-    function cancelAndReturnFromFeatureForm() {
-        if (!waitingForFeatureForm || !overlayFeatureFormDrawer || !overlayFeatureFormDrawer.featureForm) return
-        try {
-            // requestCancel() respecte le comportement QField : confirmation si nécessaire,
-            // ou annulation immédiate lorsque l’autosauvegarde est active.
-            overlayFeatureFormDrawer.featureForm.requestCancel()
-        } catch (error) {
-            // Solution de secours : fermer le tiroir. QField gérera alors son cycle normal.
-            try { overlayFeatureFormDrawer.close() } catch (closeError) {}
-            console.log("QField Table v0.6.1 cancel feature form: " + error)
-        }
+            mainWindow.displayToast(qsTr("Entité %1 sélectionnée. Touchez-la sur la carte pour ouvrir le formulaire QField, puis rouvrez QField Table après l’enregistrement.").arg(idText))
+        } catch (toastError) {}
     }
 
     function copySelectedValue() {
@@ -1101,9 +1099,12 @@ Item {
 
     function openBrowser() {
         // Une simple fermeture du dialogue ne détruit pas le plugin.
-        // On conserve donc le modèle déjà construit afin d’éviter de vider
-        // les colonnes alors que les délégués du FeatureModel existent encore.
-        if (needsProjectRefresh || !selectedLayer || vectorLayers.length === 0 || columns.length === 0 || flatRows.length === 0) {
+        // Après une édition effectuée via le flux natif de QField, on relit le
+        // jeu actuellement chargé afin de récupérer les valeurs modifiées.
+        if (refreshAfterNativeEdit && selectedLayer && columns.length > 0) {
+            refreshAfterNativeEdit = false
+            reloadFeaturesOnly()
+        } else if (needsProjectRefresh || !selectedLayer || vectorLayers.length === 0 || columns.length === 0 || flatRows.length === 0) {
             needsProjectRefresh = false
             refreshLayers()
         }
@@ -1112,7 +1113,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.1 chargé")
+        console.log("QField Table v0.6.2 chargé")
     }
 
     Connections {
@@ -1126,25 +1127,6 @@ Item {
                 needsProjectRefresh = false
                 refreshLayers()
             }
-        }
-    }
-
-    Timer {
-        id: restoreTablePositionTimer
-        interval: 80
-        repeat: false
-        onTriggered: {
-            plugin.horizontalOffset = plugin.savedTableHorizontalOffset
-            try { rowsFlick.contentY = plugin.savedTableContentY } catch (e) {}
-        }
-    }
-
-    Connections {
-        target: plugin.overlayFeatureFormDrawer
-        ignoreUnknownSignals: true
-        function onOpenedChanged() {
-            if (plugin.waitingForFeatureForm && plugin.overlayFeatureFormDrawer && !plugin.overlayFeatureFormDrawer.opened)
-                plugin.finishFeatureFormRoundTrip()
         }
     }
 
@@ -1212,7 +1194,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.1")
+        title: qsTr("QField Table — v0.6.2")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1230,6 +1212,11 @@ Item {
                     model: layerModel
                     textRole: "label"
                     onActivated: plugin.selectLayer(currentIndex)
+                }
+                Button {
+                    text: qsTr("Chargement…")
+                    enabled: plugin.columns.length > 0
+                    onClicked: loadDialog.open()
                 }
                 Button {
                     text: qsTr("Actualiser")
@@ -1530,10 +1517,6 @@ Item {
                                             hoverEnabled: true
                                             pressAndHoldInterval: 500
                                             onClicked: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
-                                            onDoubleClicked: {
-                                                plugin.selectCell(modelData.featureId, -1, modelData.featureId)
-                                                plugin.openFeatureForm(modelData.featureId)
-                                            }
                                             onPressAndHold: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
                                         }
                                     }
@@ -1565,10 +1548,6 @@ Item {
                                                 hoverEnabled: true
                                                 pressAndHoldInterval: 500
                                                 onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                onDoubleClicked: {
-                                                    plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                    plugin.openFeatureForm(modelData.featureId)
-                                                }
                                                 onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                             }
                                         }
@@ -1612,10 +1591,6 @@ Item {
                                                     hoverEnabled: true
                                                     pressAndHoldInterval: 500
                                                     onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                onDoubleClicked: {
-                                                    plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                    plugin.openFeatureForm(modelData.featureId)
-                                                }
                                                     onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                                 }
                                             }
@@ -1739,10 +1714,10 @@ Item {
                         }
                         Button {
                             visible: plugin.selectedFeatureId.length > 0
-                            text: qsTr("Modifier")
+                            text: qsTr("Modifier dans QField")
                             ToolTip.visible: hovered
-                            ToolTip.text: qsTr("Ouvrir le formulaire QField de cette entité")
-                            onClicked: plugin.openFeatureForm(plugin.selectedFeatureId)
+                            ToolTip.text: qsTr("Sélectionner cette entité sur la carte et utiliser le formulaire natif de QField")
+                            onClicked: plugin.handOffToNativeQField(plugin.selectedFeatureId)
                         }
                         Button {
                             visible: plugin.selectedFeatureId.length > 0
@@ -1813,40 +1788,84 @@ Item {
         }
     }
 
-    // Barre de retour affichée uniquement lorsqu’un formulaire QField a été ouvert
-    // depuis QField Table. Le formulaire natif reste entièrement utilisé pour l’édition.
-    Rectangle {
-        id: featureFormReturnBar
-        parent: plugin.mainWindow ? plugin.mainWindow.contentItem : plugin
-        z: 1000000
-        visible: plugin.waitingForFeatureForm
-                 && plugin.overlayFeatureFormDrawer
-                 && plugin.overlayFeatureFormDrawer.opened
-        width: returnButtons.implicitWidth + 20
-        height: returnButtons.implicitHeight + 16
-        radius: 6
-        color: Theme.mainBackgroundColor
-        border.width: 1
-        border.color: Theme.lightGray
-        anchors.right: parent ? parent.right : undefined
-        anchors.bottom: parent ? parent.bottom : undefined
-        anchors.rightMargin: 18
-        anchors.bottomMargin: 18
+    QfDialog {
+        id: loadDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Chargement des enregistrements")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(700, parent.width * 0.62) : 820
+        height: parent ? Math.max(500, parent.height * 0.65) : 600
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
 
-        RowLayout {
-            id: returnButtons
-            anchors.centerIn: parent
-            spacing: 8
+        contentItem: ColumnLayout {
+            spacing: 10
 
-            Button {
-                text: qsTr("Annuler et revenir")
-                onClicked: plugin.cancelAndReturnFromFeatureForm()
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("La table contient %1 enregistrement(s). Le préfiltre est appliqué avant la construction de la table, ce qui permet de limiter le temps de chargement.").arg(plugin.totalFeatureCount)
             }
 
-            Button {
-                text: qsTr("Enregistrer et revenir")
-                highlighted: true
-                onClicked: plugin.saveAndReturnFromFeatureForm()
+            RowLayout {
+                Layout.fillWidth: true
+                Button {
+                    text: qsTr("Charger les 100 premiers")
+                    onClicked: plugin.loadFirstHundred()
+                }
+                Button {
+                    text: qsTr("Charger tous (%1)").arg(plugin.totalFeatureCount)
+                    onClicked: plugin.loadAllFeatures()
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
+
+            Label { text: qsTr("Préfiltrer avant le chargement"); font.bold: true }
+            ComboBox {
+                id: preFilterColumnCombo
+                Layout.fillWidth: true
+                model: plugin.columns
+                textRole: "alias"
+                displayText: plugin.preFilterColumn >= 0 && plugin.preFilterColumn < plugin.columns.length
+                             ? (plugin.columns[plugin.preFilterColumn].alias || plugin.columns[plugin.preFilterColumn].fieldName)
+                             : qsTr("Choisir un champ…")
+                onActivated: plugin.preFilterColumn = currentIndex
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                ComboBox {
+                    id: preFilterModeCombo
+                    Layout.preferredWidth: 190
+                    model: [qsTr("Contient"), qsTr("Égale"), qsTr("Est vide"), qsTr("N'est pas vide")]
+                    onActivated: {
+                        plugin.preFilterMode = currentIndex === 1 ? "equals" : currentIndex === 2 ? "empty" : currentIndex === 3 ? "notempty" : "contains"
+                    }
+                }
+                TextField {
+                    id: preFilterTextField
+                    Layout.fillWidth: true
+                    enabled: plugin.preFilterMode !== "empty" && plugin.preFilterMode !== "notempty"
+                    placeholderText: qsTr("Valeur du préfiltre…")
+                    text: plugin.preFilterText
+                    onTextChanged: plugin.preFilterText = text
+                }
+            }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.7
+                text: qsTr("Exemple : choisir Municipalité + Égale + 38065 charge uniquement les enregistrements correspondants. Le préfiltre porte sur l’ensemble de la couche, pas seulement sur les 100 lignes déjà chargées.")
+            }
+
+            Item { Layout.fillHeight: true }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button { text: qsTr("Annuler"); onClicked: loadDialog.close() }
+                Button { text: qsTr("Charger avec le préfiltre"); onClicked: plugin.loadWithPreFilter() }
             }
         }
     }
