@@ -113,12 +113,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.0 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.0 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -191,7 +191,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.0 iterator: " + error)
+            console.log("QField Table v0.6.1 iterator: " + error)
         }
 
         statusLabel.text = qsTr("Couche : %1 — %2 enregistrement(s); %3 chargé(s)")
@@ -314,7 +314,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.0 configuration invalide: " + e)
+            console.log("QField Table v0.6.1 configuration invalide: " + e)
             return ({})
         }
     }
@@ -338,7 +338,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.0 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.1 lecture propriété couche: " + e)
         }
         return null
     }
@@ -370,7 +370,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.0 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.1 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -948,7 +948,7 @@ Item {
                 if (featureId(feature) === wanted) return feature
             }
         } catch (error) {
-            console.log("QField Table v0.6.0 findFreshFeature: " + error)
+            console.log("QField Table v0.6.1 findFreshFeature: " + error)
         }
         return null
     }
@@ -1022,7 +1022,7 @@ Item {
         } catch (error) {
             waitingForFeatureForm = false
             diagnosticMessage = qsTr("Impossible d’ouvrir le formulaire : %1").arg(String(error))
-            console.log("QField Table v0.6.0 openFeatureForm: " + error)
+            console.log("QField Table v0.6.1 openFeatureForm: " + error)
             browserDialog.open()
         }
     }
@@ -1037,6 +1037,29 @@ Item {
         horizontalOffset = savedTableHorizontalOffset
         browserDialog.open()
         restoreTablePositionTimer.restart()
+    }
+
+    function saveAndReturnFromFeatureForm() {
+        if (!waitingForFeatureForm || !overlayFeatureFormDrawer || !overlayFeatureFormDrawer.featureForm) return
+        try {
+            overlayFeatureFormDrawer.featureForm.confirm()
+        } catch (error) {
+            diagnosticMessage = qsTr("Impossible d’enregistrer le formulaire : %1").arg(String(error))
+            console.log("QField Table v0.6.1 confirm feature form: " + error)
+        }
+    }
+
+    function cancelAndReturnFromFeatureForm() {
+        if (!waitingForFeatureForm || !overlayFeatureFormDrawer || !overlayFeatureFormDrawer.featureForm) return
+        try {
+            // requestCancel() respecte le comportement QField : confirmation si nécessaire,
+            // ou annulation immédiate lorsque l’autosauvegarde est active.
+            overlayFeatureFormDrawer.featureForm.requestCancel()
+        } catch (error) {
+            // Solution de secours : fermer le tiroir. QField gérera alors son cycle normal.
+            try { overlayFeatureFormDrawer.close() } catch (closeError) {}
+            console.log("QField Table v0.6.1 cancel feature form: " + error)
+        }
     }
 
     function copySelectedValue() {
@@ -1089,7 +1112,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.0 chargé")
+        console.log("QField Table v0.6.1 chargé")
     }
 
     Connections {
@@ -1189,7 +1212,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.0")
+        title: qsTr("QField Table — v0.6.1")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1786,6 +1809,44 @@ Item {
                         text: ""
                     }
                 }
+            }
+        }
+    }
+
+    // Barre de retour affichée uniquement lorsqu’un formulaire QField a été ouvert
+    // depuis QField Table. Le formulaire natif reste entièrement utilisé pour l’édition.
+    Rectangle {
+        id: featureFormReturnBar
+        parent: plugin.mainWindow ? plugin.mainWindow.contentItem : plugin
+        z: 1000000
+        visible: plugin.waitingForFeatureForm
+                 && plugin.overlayFeatureFormDrawer
+                 && plugin.overlayFeatureFormDrawer.opened
+        width: returnButtons.implicitWidth + 20
+        height: returnButtons.implicitHeight + 16
+        radius: 6
+        color: Theme.mainBackgroundColor
+        border.width: 1
+        border.color: Theme.lightGray
+        anchors.right: parent ? parent.right : undefined
+        anchors.bottom: parent ? parent.bottom : undefined
+        anchors.rightMargin: 18
+        anchors.bottomMargin: 18
+
+        RowLayout {
+            id: returnButtons
+            anchors.centerIn: parent
+            spacing: 8
+
+            Button {
+                text: qsTr("Annuler et revenir")
+                onClicked: plugin.cancelAndReturnFromFeatureForm()
+            }
+
+            Button {
+                text: qsTr("Enregistrer et revenir")
+                highlighted: true
+                onClicked: plugin.saveAndReturnFromFeatureForm()
             }
         }
     }
