@@ -30,7 +30,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.6.6 : cache des libellés ValueRelation / ValueMap.
+    // v0.6.7 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -117,12 +117,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.6 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.7 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.6 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.7 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -202,7 +202,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.6 iterator: " + error)
+            console.log("QField Table v0.6.7 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -245,7 +245,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.6.6 filtered iterator: " + error)
+            console.log("QField Table v0.6.7 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -332,6 +332,22 @@ Item {
         return '"' + String(name || "").replace(/"/g, '""') + '"'
     }
 
+    function cleanDisplayedCollectionValue(value) {
+        var text = formatValue(value).trim()
+
+        // Nettoyage d'affichage seulement : la donnée source n'est pas modifiée.
+        if (text === "{}")
+            return ""
+
+        if (text.length >= 2 &&
+                text.charAt(0) === "{" &&
+                text.charAt(text.length - 1) === "}") {
+            text = text.substring(1, text.length - 1).trim()
+        }
+
+        return text
+    }
+
     function representedValue(feature, fieldName, rawValue) {
         var rawText = formatValue(rawValue)
         if (!feature || !fieldName || String(fieldName).length === 0)
@@ -349,10 +365,10 @@ Item {
 
             // represent_value() peut retourner la valeur brute si aucun
             // formateur n'est configuré. On la conserve alors telle quelle.
-            return text.length > 0 ? text : rawText
+            return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.6.6 represent_value(" + fieldName + "): " + e)
-            return rawText
+            console.log("QField Table v0.6.7 represent_value(" + fieldName + "): " + e)
+            return cleanDisplayedCollectionValue(rawText)
         }
     }
 
@@ -409,7 +425,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.6.6 : ne parcourt plus toutes les cellules au chargement.
+        // v0.6.7 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -465,7 +481,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.6 configuration invalide: " + e)
+            console.log("QField Table v0.6.7 configuration invalide: " + e)
             return ({})
         }
     }
@@ -489,7 +505,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.6 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.7 lecture propriété couche: " + e)
         }
         return null
     }
@@ -521,7 +537,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.6 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.7 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -790,7 +806,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.6.6 : la construction initiale ne lit plus chaque attribut de
+        // v0.6.7 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -1115,7 +1131,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.6.6 zoom: " + zoomError)
+            console.log("QField Table v0.6.7 zoom: " + zoomError)
             return false
         }
     }
@@ -1207,7 +1223,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.6 chargé")
+        console.log("QField Table v0.6.7 chargé")
     }
 
     Connections {
@@ -1305,7 +1321,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.6")
+        title: qsTr("QField Table — v0.6.7")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1565,7 +1581,7 @@ Item {
                 }
             }
 
-            // v0.6.6 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.6.7 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {

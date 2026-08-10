@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.6.6
-description=Table d'attributs QField rapide avec filtres, colonnes persistantes, représentations QGIS natives et zoom vers l’entité.
+version=0.6.7
+description=Table d'attributs QField rapide avec filtres, colonnes persistantes, valeurs relationnelles nettoyées et zoom vers l’entité.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
