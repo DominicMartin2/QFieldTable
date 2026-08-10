@@ -29,7 +29,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // [{ featureId, values: [] }]
+    // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
     property var filteredRows: []
     property string diagnosticMessage: ""
@@ -114,12 +114,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.2 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.3 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.2 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.3 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -199,7 +199,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.2 iterator: " + error)
+            console.log("QField Table v0.6.3 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -242,7 +242,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.6.2 filtered iterator: " + error)
+            console.log("QField Table v0.6.3 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -372,12 +372,15 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
+        // v0.6.3 : ne parcourt plus toutes les cellules au chargement.
+        // La largeur initiale est estimée à partir de l’alias et de la valeur
+        // de référence déjà fournie par le FeatureModel. Les autres valeurs
+        // seront lues seulement lorsqu’une cellule devient visible.
         var updated = []
         for (var c = 0; c < columns.length; ++c) {
             var col = columns[c]
             var width = estimatedWidth(col.alias || col.fieldName || qsTr("Champ"))
-            for (var r = 0; r < rows.length; ++r)
-                width = Math.max(width, estimatedWidth(rows[r].values[c]))
+            width = Math.max(width, estimatedWidth(col.sampleValue || ""))
             updated.push({
                 "alias": col.alias,
                 "fieldName": col.fieldName,
@@ -389,6 +392,15 @@ Item {
         columns = updated
         restoreColumnConfiguration()
         refreshDisplayedColumns()
+    }
+
+    function rowValue(row, columnIndex) {
+        if (!row || columnIndex < 0 || columnIndex >= columns.length) return ""
+        if (!row.values) row.values = []
+        if (row.values[columnIndex] !== undefined) return row.values[columnIndex]
+        var value = readAttribute(row.feature, columns[columnIndex])
+        row.values[columnIndex] = value
+        return value
     }
 
     function projectIdentifier() {
@@ -414,7 +426,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.2 configuration invalide: " + e)
+            console.log("QField Table v0.6.3 configuration invalide: " + e)
             return ({})
         }
     }
@@ -438,7 +450,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.2 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.3 lecture propriété couche: " + e)
         }
         return null
     }
@@ -470,7 +482,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.2 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.3 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -739,18 +751,19 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
+        // v0.6.3 : la construction initiale ne lit plus chaque attribut de
+        // chaque entité. On conserve l’objet QgsFeature et un cache vide;
+        // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
         for (var r = 0; r < previewFeatures.length; ++r) {
             var feature = previewFeatures[r]
-            var values = []
-            for (var c = 0; c < columns.length; ++c)
-                values.push(readAttribute(feature, columns[c]))
-            result.push({ "featureId": featureId(feature), "values": values })
+            result.push({ "featureId": featureId(feature), "feature": feature, "values": [] })
         }
         optimizeColumnWidths(result)
         horizontalOffset = 0
         flatRows = result
         applyView()
+        diagnosticMessage = qsTr("Chargement optimisé : %1 ligne(s), valeurs lues à la demande.").arg(result.length)
     }
 
     function frozenWidth() {
@@ -779,7 +792,7 @@ Item {
 
     function rowMatchesColumnFilter(row) {
         if (filterColumn < 0 || filterColumn >= columns.length) return true
-        var value = row.values[filterColumn]
+        var value = rowValue(row, filterColumn)
         var text = String(value === undefined || value === null ? "" : value)
         var needle = String(filterText || "").toLowerCase().trim()
 
@@ -812,7 +825,7 @@ Item {
         var counts = ({})
         var originals = ({})
         for (var i = 0; i < flatRows.length; ++i) {
-            var value = flatRows[i].values[filterColumn]
+            var value = rowValue(flatRows[i], filterColumn)
             var key = distinctKey(value)
             counts[key] = (counts[key] || 0) + 1
             originals[key] = value
@@ -910,11 +923,11 @@ Item {
             var row = flatRows[r]
             var globalMatch = term.length === 0 || String(row.featureId).toLowerCase().indexOf(term) >= 0
             if (!globalMatch) {
-                for (var c = 0; c < row.values.length; ++c) {
-                    if (String(row.values[c]).toLowerCase().indexOf(term) >= 0) { globalMatch = true; break }
+                for (var c = 0; c < columns.length; ++c) {
+                    if (String(rowValue(row, c)).toLowerCase().indexOf(term) >= 0) { globalMatch = true; break }
                 }
             }
-            if (globalMatch && pendingDistinctKeys[distinctKey(row.values[filterColumn])] === true) count++
+            if (globalMatch && pendingDistinctKeys[distinctKey(rowValue(row, filterColumn))] === true) count++
         }
         return count
     }
@@ -994,8 +1007,8 @@ Item {
             var row = flatRows[r]
             var globalMatch = term.length === 0 || String(row.featureId).toLowerCase().indexOf(term) >= 0
             if (!globalMatch) {
-                for (var c = 0; c < row.values.length; ++c) {
-                    if (String(row.values[c]).toLowerCase().indexOf(term) >= 0) {
+                for (var c = 0; c < columns.length; ++c) {
+                    if (String(rowValue(row, c)).toLowerCase().indexOf(term) >= 0) {
                         globalMatch = true
                         break
                     }
@@ -1008,7 +1021,7 @@ Item {
             var col = sortColumn
             var asc = sortAscending
             result.sort(function(a, b) {
-                var cmp = compareValues(a.values[col], b.values[col])
+                var cmp = compareValues(rowValue(a, col), rowValue(b, col))
                 if (cmp === 0) cmp = compareValues(a.featureId, b.featureId)
                 return asc ? cmp : -cmp
             })
@@ -1038,6 +1051,33 @@ Item {
         selectedCellValue = formatValue(value)
     }
 
+    function featureForId(featureIdValue) {
+        var idText = String(featureIdValue || "")
+        for (var i = 0; i < flatRows.length; ++i)
+            if (String(flatRows[i].featureId) === idText) return flatRows[i].feature
+        for (var j = 0; j < previewFeatures.length; ++j)
+            if (featureId(previewFeatures[j]) === idText) return previewFeatures[j]
+        return null
+    }
+
+    function zoomToFeature(featureIdValue) {
+        if (!selectedLayer || !mapCanvas) return false
+        var feature = featureForId(featureIdValue)
+        if (!feature) {
+            diagnosticMessage = qsTr("Impossible de retrouver l’entité %1 pour le zoom.").arg(String(featureIdValue))
+            return false
+        }
+        try {
+            var extent = FeatureUtils.extent(mapCanvas.mapSettings, selectedLayer, feature)
+            mapCanvas.mapSettings.extent = extent
+            return true
+        } catch (zoomError) {
+            diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
+            console.log("QField Table v0.6.3 zoom: " + zoomError)
+            return false
+        }
+    }
+
     function handOffToNativeQField(featureIdValue) {
         if (!selectedLayer) return
         var idText = String(featureIdValue || selectedFeatureId)
@@ -1053,10 +1093,13 @@ Item {
             diagnosticMessage = qsTr("Impossible de sélectionner l’entité : %1").arg(String(selectionError))
             return
         }
+        // Centre immédiatement la carte sur l’objet avant de quitter la table.
+        // FeatureUtils.extent() gère également le cas particulier des points.
+        zoomToFeature(idText)
         refreshAfterNativeEdit = true
         browserDialog.close()
         try {
-            mainWindow.displayToast(qsTr("Entité %1 sélectionnée. Touchez-la sur la carte pour ouvrir le formulaire QField, puis rouvrez QField Table après l’enregistrement.").arg(idText))
+            mainWindow.displayToast(qsTr("Entité %1 sélectionnée et centrée. Touchez-la sur la carte pour ouvrir le formulaire QField, puis rouvrez QField Table après l’enregistrement.").arg(idText))
         } catch (toastError) {}
     }
 
@@ -1113,7 +1156,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.2 chargé")
+        console.log("QField Table v0.6.3 chargé")
     }
 
     Connections {
@@ -1194,7 +1237,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.2")
+        title: qsTr("QField Table — v0.6.3")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1526,7 +1569,7 @@ Item {
                                         delegate: Rectangle {
                                             required property int index
                                             property var columnData: plugin.displayedColumns[index]
-                                            property string cellValue: columnData && modelData.values[columnData.originalIndex] !== undefined ? String(modelData.values[columnData.originalIndex]) : ""
+                                            property string cellValue: columnData ? String(plugin.rowValue(modelData, columnData.originalIndex)) : ""
                                             width: columnData ? columnData.width : 140
                                             height: frozenCellsRow.height
                                             border.width: 1
@@ -1569,7 +1612,7 @@ Item {
                                                 required property int index
                                                 property int actualIndex: index + plugin.frozenColumnCount
                                                 property var columnData: plugin.displayedColumns[actualIndex]
-                                                property string cellValue: columnData && modelData.values[columnData.originalIndex] !== undefined ? String(modelData.values[columnData.originalIndex]) : ""
+                                                property string cellValue: columnData ? String(plugin.rowValue(modelData, columnData.originalIndex)) : ""
                                                 width: columnData ? columnData.width : 140
                                                 height: scrollingCellsViewport.height
                                                 border.width: 1
@@ -1716,7 +1759,7 @@ Item {
                             visible: plugin.selectedFeatureId.length > 0
                             text: qsTr("Modifier dans QField")
                             ToolTip.visible: hovered
-                            ToolTip.text: qsTr("Sélectionner cette entité sur la carte et utiliser le formulaire natif de QField")
+                            ToolTip.text: qsTr("Sélectionner et zoomer sur cette entité, puis utiliser le formulaire natif de QField")
                             onClicked: plugin.handOffToNativeQField(plugin.selectedFeatureId)
                         }
                         Button {
