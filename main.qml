@@ -30,7 +30,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.6.5 : cache des libellés ValueRelation / ValueMap.
+    // v0.6.6 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -117,12 +117,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.5 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.6 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.5 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.6 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -151,7 +151,6 @@ Item {
         preFilterMode = "contains"
         preFilterText = ""
         columns = []
-        relationDisplayCaches = ({})
         flatRows = []
         filteredRows = []
         selectedFeatureId = ""
@@ -203,7 +202,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.5 iterator: " + error)
+            console.log("QField Table v0.6.6 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -246,7 +245,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.6.5 filtered iterator: " + error)
+            console.log("QField Table v0.6.6 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -329,155 +328,32 @@ Item {
         return n === "fid" || n === "fid_1"
     }
 
-    function setupValue(object, name, fallback) {
-        if (object === null || object === undefined) return fallback
-        try {
-            if (typeof object[name] === "function") return object[name]()
-            if (object[name] !== undefined) return object[name]
-        } catch (e) {}
-        return fallback
+    function expressionQuotedFieldName(name) {
+        return '"' + String(name || "").replace(/"/g, '""') + '"'
     }
 
-    function editorWidgetInfo(fieldIndex) {
-        var info = { "type": "", "config": ({}) }
-        if (!selectedLayer || fieldIndex < 0) return info
-        try {
-            var setup = selectedLayer.editorWidgetSetup(fieldIndex)
-            if (!setup) return info
-            info.type = String(setupValue(setup, "type", "") || "")
-            var cfg = setupValue(setup, "config", ({}))
-            if (cfg) info.config = cfg
-        } catch (e) {
-            console.log("QField Table v0.6.5 editorWidgetSetup: " + e)
-        }
-        return info
-    }
-
-    function configValue(config, names, fallback) {
-        if (!config) return fallback
-        for (var i = 0; i < names.length; ++i) {
-            try {
-                var key = names[i]
-                if (config[key] !== undefined && config[key] !== null) return config[key]
-            } catch (e) {}
-        }
-        return fallback
-    }
-
-    function projectLayerById(id) {
-        if (!id) return null
-        try {
-            var layers = qgisProject.mapLayers()
-            if (layers) {
-                if (layers[String(id)] !== undefined) return layers[String(id)]
-                if (Array.isArray(layers)) {
-                    for (var i = 0; i < layers.length; ++i)
-                        if (layerId(layers[i]) === String(id)) return layers[i]
-                } else {
-                    for (var key in layers)
-                        if (layerId(layers[key]) === String(id)) return layers[key]
-                }
-            }
-        } catch (e) {}
-        return null
-    }
-
-    function parseMultiStoredValue(rawValue) {
-        var text = String(rawValue === undefined || rawValue === null ? "" : rawValue).trim()
-        if (text.length === 0) return []
-        if (text.charAt(0) === "{" && text.charAt(text.length - 1) === "}") {
-            text = text.substring(1, text.length - 1)
-            if (text.trim().length === 0) return []
-            var parts = []
-            var current = ""
-            var quoted = false
-            for (var i = 0; i < text.length; ++i) {
-                var ch = text.charAt(i)
-                if (ch === '"') { quoted = !quoted; continue }
-                if (ch === "," && !quoted) {
-                    parts.push(current.trim())
-                    current = ""
-                } else current += ch
-            }
-            parts.push(current.trim())
-            var clean = []
-            for (var p = 0; p < parts.length; ++p)
-                if (parts[p].length > 0) clean.push(parts[p])
-            return clean
-        }
-        return [text]
-    }
-
-    function buildValueRelationCache(columnIndex) {
-        var cacheKey = String(columnIndex)
-        if (relationDisplayCaches[cacheKey] !== undefined)
-            return relationDisplayCaches[cacheKey]
-
-        var result = { "kind": "", "map": ({}) }
-        if (columnIndex < 0 || columnIndex >= columns.length) return result
-        var col = columns[columnIndex]
-        var info = editorWidgetInfo(col.fieldIndex)
-        var widgetType = String(info.type || "")
-        var cfg = info.config || ({})
-
-        if (widgetType === "ValueRelation") {
-            result.kind = "ValueRelation"
-            var targetLayerId = String(configValue(cfg, ["Layer", "LayerId", "layer", "layerId"], "") || "")
-            var keyField = String(configValue(cfg, ["Key", "KeyField", "key", "keyField"], "") || "")
-            var valueField = String(configValue(cfg, ["Value", "ValueField", "value", "valueField"], "") || "")
-            var targetLayer = projectLayerById(targetLayerId)
-            if (targetLayer && keyField.length > 0 && valueField.length > 0) {
-                try {
-                    var iterator = LayerUtils.createFeatureIterator(targetLayer)
-                    while (iterator.hasNext()) {
-                        var f = iterator.next()
-                        result.map[formatValue(f.attribute(keyField))] = formatValue(f.attribute(valueField))
-                    }
-                } catch (e1) {
-                    console.log("QField Table v0.6.5 ValueRelation: " + e1)
-                }
-            }
-        } else if (widgetType === "ValueMap") {
-            result.kind = "ValueMap"
-            var valueMap = configValue(cfg, ["map", "Map"], null)
-            if (valueMap) {
-                try {
-                    if (Array.isArray(valueMap)) {
-                        for (var i = 0; i < valueMap.length; ++i) {
-                            var entry = valueMap[i]
-                            if (!entry) continue
-                            for (var label in entry) result.map[String(entry[label])] = String(label)
-                        }
-                    } else {
-                        for (var label2 in valueMap) result.map[String(valueMap[label2])] = String(label2)
-                    }
-                } catch (e2) {
-                    console.log("QField Table v0.6.5 ValueMap: " + e2)
-                }
-            }
-        }
-
-        var nextCaches = ({})
-        for (var oldKey in relationDisplayCaches) nextCaches[oldKey] = relationDisplayCaches[oldKey]
-        nextCaches[cacheKey] = result
-        relationDisplayCaches = nextCaches
-        return result
-    }
-
-    function displayValueForColumn(rawValue, columnIndex) {
+    function representedValue(feature, fieldName, rawValue) {
         var rawText = formatValue(rawValue)
-        if (rawText.length === 0) return ""
-        var cache = buildValueRelationCache(columnIndex)
-        if (!cache || !cache.kind || cache.kind.length === 0) return rawText
+        if (!feature || !fieldName || String(fieldName).length === 0)
+            return rawText
 
-        var values = parseMultiStoredValue(rawText)
-        var labels = []
-        for (var i = 0; i < values.length; ++i) {
-            var key = String(values[i])
-            var label = cache.map[key]
-            labels.push(label !== undefined && label !== null && String(label).length > 0 ? String(label) : key)
+        try {
+            displayExpressionEvaluator.layer = selectedLayer
+            displayExpressionEvaluator.project = qgisProject
+            displayExpressionEvaluator.feature = feature
+            displayExpressionEvaluator.expressionText =
+                    "represent_value(" + expressionQuotedFieldName(fieldName) + ")"
+
+            var represented = displayExpressionEvaluator.evaluate()
+            var text = formatValue(represented)
+
+            // represent_value() peut retourner la valeur brute si aucun
+            // formateur n'est configuré. On la conserve alors telle quelle.
+            return text.length > 0 ? text : rawText
+        } catch (e) {
+            console.log("QField Table v0.6.6 represent_value(" + fieldName + "): " + e)
+            return rawText
         }
-        return labels.join("; ")
     }
 
     function registerColumn(aliasValue, fieldObject, fieldIndexValue, sampleValue) {
@@ -494,15 +370,13 @@ Item {
         }
 
         var next = columns.slice(0)
-        var widgetInfo = editorWidgetInfo(indexValue)
         next.push({
             "alias": aliasText,
             "fieldName": technicalName,
             "fieldIndex": indexValue,
             "sampleValue": formatValue(sampleValue),
             "width": 160,
-            "technicalHidden": isTechnicalIdentifierName(technicalName),
-            "widgetType": widgetInfo.type || ""
+            "technicalHidden": isTechnicalIdentifierName(technicalName)
         })
         columns = next
         rowBuildTimer.restart()
@@ -535,7 +409,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.6.5 : ne parcourt plus toutes les cellules au chargement.
+        // v0.6.6 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -550,8 +424,7 @@ Item {
                 "fieldIndex": col.fieldIndex,
                 "sampleValue": col.sampleValue,
                 "width": width,
-                "technicalHidden": col.technicalHidden === true,
-                "widgetType": col.widgetType || ""
+                "technicalHidden": col.technicalHidden === true
             })
         }
         columns = updated
@@ -564,7 +437,7 @@ Item {
         if (!row.values) row.values = []
         if (row.values[columnIndex] !== undefined) return row.values[columnIndex]
         var value = readAttribute(row.feature, columns[columnIndex])
-        value = displayValueForColumn(value, columnIndex)
+        value = representedValue(row.feature, columns[columnIndex].fieldName, value)
         row.values[columnIndex] = value
         return value
     }
@@ -592,7 +465,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.5 configuration invalide: " + e)
+            console.log("QField Table v0.6.6 configuration invalide: " + e)
             return ({})
         }
     }
@@ -616,7 +489,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.5 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.6 lecture propriété couche: " + e)
         }
         return null
     }
@@ -648,7 +521,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.5 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.6 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -917,7 +790,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.6.5 : la construction initiale ne lit plus chaque attribut de
+        // v0.6.6 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -929,7 +802,7 @@ Item {
         horizontalOffset = 0
         flatRows = result
         applyView()
-        diagnosticMessage = qsTr("Affichage virtualisé : %1 ligne(s) chargée(s).").arg(result.length)
+        diagnosticMessage = ""
     }
 
     function frozenWidth() {
@@ -1242,7 +1115,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.6.5 zoom: " + zoomError)
+            console.log("QField Table v0.6.6 zoom: " + zoomError)
             return false
         }
     }
@@ -1334,7 +1207,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.5 chargé")
+        console.log("QField Table v0.6.6 chargé")
     }
 
     Connections {
@@ -1349,6 +1222,16 @@ Item {
                 refreshLayers()
             }
         }
+    }
+
+    // QGIS/QField natif : retourne les libellés configurés par les widgets
+    // (Value Relation, Value Map, etc.) via represent_value().
+    ExpressionEvaluator {
+        id: displayExpressionEvaluator
+        project: qgisProject
+        layer: plugin.selectedLayer
+        mapSettings: iface.mapCanvas().mapSettings
+        mode: ExpressionEvaluator.ExpressionMode
     }
 
     Timer {
@@ -1422,7 +1305,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.5")
+        title: qsTr("QField Table — v0.6.6")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1682,7 +1565,7 @@ Item {
                 }
             }
 
-            // v0.6.5 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.6.6 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
