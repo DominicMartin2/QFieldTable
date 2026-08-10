@@ -26,6 +26,7 @@ Item {
     property string preFilterMode: "contains"
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
+    property string pendingZoomFeatureId: ""
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
@@ -114,12 +115,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.3 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.6.4 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.3 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.6.4 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -199,7 +200,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.3 iterator: " + error)
+            console.log("QField Table v0.6.4 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -242,7 +243,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.6.3 filtered iterator: " + error)
+            console.log("QField Table v0.6.4 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -372,7 +373,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.6.3 : ne parcourt plus toutes les cellules au chargement.
+        // v0.6.4 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -426,7 +427,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.3 configuration invalide: " + e)
+            console.log("QField Table v0.6.4 configuration invalide: " + e)
             return ({})
         }
     }
@@ -450,7 +451,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.3 lecture propriété couche: " + e)
+            console.log("QField Table v0.6.4 lecture propriété couche: " + e)
         }
         return null
     }
@@ -482,7 +483,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.3 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.6.4 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -751,7 +752,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.6.3 : la construction initiale ne lit plus chaque attribut de
+        // v0.6.4 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -763,7 +764,7 @@ Item {
         horizontalOffset = 0
         flatRows = result
         applyView()
-        diagnosticMessage = qsTr("Chargement optimisé : %1 ligne(s), valeurs lues à la demande.").arg(result.length)
+        diagnosticMessage = qsTr("Affichage virtualisé : %1 ligne(s) chargée(s).").arg(result.length)
     }
 
     function frozenWidth() {
@@ -1061,20 +1062,34 @@ Item {
     }
 
     function zoomToFeature(featureIdValue) {
-        if (!selectedLayer || !mapCanvas) return false
+        if (!selectedLayer) return false
+        var canvas = iface.mapCanvas()
+        if (!canvas || !canvas.mapSettings) return false
         var feature = featureForId(featureIdValue)
         if (!feature) {
             diagnosticMessage = qsTr("Impossible de retrouver l’entité %1 pour le zoom.").arg(String(featureIdValue))
             return false
         }
         try {
-            var extent = FeatureUtils.extent(mapCanvas.mapSettings, selectedLayer, feature)
-            mapCanvas.mapSettings.extent = extent
+            // Signature officielle QField : FeatureUtils.extent(mapSettings, layer, feature)
+            var extent = FeatureUtils.extent(canvas.mapSettings, selectedLayer, feature)
+            canvas.mapSettings.extent = extent
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.6.3 zoom: " + zoomError)
+            console.log("QField Table v0.6.4 zoom: " + zoomError)
             return false
+        }
+    }
+
+    function performPendingZoom() {
+        var idText = String(pendingZoomFeatureId || "")
+        pendingZoomFeatureId = ""
+        if (idText.length === 0) return
+        if (zoomToFeature(idText)) {
+            try {
+                mainWindow.displayToast(qsTr("Entité %1 sélectionnée et centrée. Touchez-la sur la carte pour ouvrir son formulaire.").arg(idText))
+            } catch (toastError) {}
         }
     }
 
@@ -1093,14 +1108,12 @@ Item {
             diagnosticMessage = qsTr("Impossible de sélectionner l’entité : %1").arg(String(selectionError))
             return
         }
-        // Centre immédiatement la carte sur l’objet avant de quitter la table.
-        // FeatureUtils.extent() gère également le cas particulier des points.
-        zoomToFeature(idText)
+        // Le dialogue modal est fermé AVANT le changement d’emprise. Le zoom est
+        // exécuté ensuite par un Timer, afin que le canevas soit de nouveau actif.
+        pendingZoomFeatureId = idText
         refreshAfterNativeEdit = true
         browserDialog.close()
-        try {
-            mainWindow.displayToast(qsTr("Entité %1 sélectionnée et centrée. Touchez-la sur la carte pour ouvrir le formulaire QField, puis rouvrez QField Table après l’enregistrement.").arg(idText))
-        } catch (toastError) {}
+        zoomAfterCloseTimer.restart()
     }
 
     function copySelectedValue() {
@@ -1156,7 +1169,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.3 chargé")
+        console.log("QField Table v0.6.4 chargé")
     }
 
     Connections {
@@ -1222,6 +1235,13 @@ Item {
         onTriggered: plugin.applyView()
     }
 
+    Timer {
+        id: zoomAfterCloseTimer
+        interval: 180
+        repeat: false
+        onTriggered: plugin.performPendingZoom()
+    }
+
     ListModel { id: layerModel }
 
     QfToolButton {
@@ -1237,7 +1257,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.3")
+        title: qsTr("QField Table — v0.6.4")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1497,151 +1517,144 @@ Item {
                 }
             }
 
-            // Le corps ne défile que verticalement. La partie droite est déplacée
-            // horizontalement par le curseur commun à l'en-tête et aux lignes.
-            Flickable {
-                id: bodyFlick
+            // v0.6.4 : ListView virtualisé. Contrairement au Repeater des versions
+            // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
+            // sont instanciées. C’est le changement principal de performance.
+            ListView {
+                id: bodyList
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                contentWidth: width
-                contentHeight: rowsColumn.height
-                flickableDirection: Flickable.VerticalFlick
+                model: plugin.filteredRows
+                spacing: 0
+                cacheBuffer: 240
+                reuseItems: true
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
 
-                Column {
-                    id: rowsColumn
-                    width: bodyFlick.width
+                delegate: Item {
+                    required property var modelData
+                    required property int index
+                    width: bodyList.width
+                    height: 40
 
-                    Repeater {
-                        model: plugin.filteredRows
-                        delegate: Item {
-                            required property var modelData
-                            required property int index
-                            width: rowsColumn.width
-                            height: 40
+                    Rectangle {
+                        anchors.fill: parent
+                        color: plugin.selectedFeatureId === String(modelData.featureId)
+                               ? Theme.mainColor
+                               : (index % 2 ? "#f4f4f4" : "transparent")
+                        opacity: plugin.selectedFeatureId === String(modelData.featureId) ? 0.22 : 1
+                    }
+
+                    Row {
+                        anchors.fill: parent
+
+                        Row {
+                            id: frozenCellsRowV64
+                            width: plugin.frozenWidth()
+                            height: parent.height
 
                             Rectangle {
-                                anchors.fill: parent
-                                color: plugin.selectedFeatureId === String(modelData.featureId)
-                                       ? Theme.mainColor
-                                       : (index % 2 ? "#f4f4f4" : "transparent")
-                                opacity: plugin.selectedFeatureId === String(modelData.featureId) ? 0.22 : 1
+                                width: 90
+                                height: parent.height
+                                border.width: 1
+                                border.color: Theme.lightGray
+                                color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === -1
+                                       ? "#dff2c7" : "transparent"
+                                Label {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    text: modelData.featureId
+                                    verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                }
+                                ToolTip.visible: entityCellMouseV64.containsMouse
+                                ToolTip.text: String(modelData.featureId)
+                                MouseArea {
+                                    id: entityCellMouseV64
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    pressAndHoldInterval: 500
+                                    onClicked: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
+                                    onPressAndHold: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
+                                }
                             }
 
+                            Repeater {
+                                model: Math.min(plugin.frozenColumnCount, plugin.displayedColumns.length)
+                                delegate: Rectangle {
+                                    required property int index
+                                    property var columnData: plugin.displayedColumns[index]
+                                    property string cellValue: columnData ? String(plugin.rowValue(modelData, columnData.originalIndex)) : ""
+                                    width: columnData ? columnData.width : 140
+                                    height: frozenCellsRowV64.height
+                                    border.width: 1
+                                    border.color: Theme.lightGray
+                                    color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === columnData.originalIndex
+                                           ? "#dff2c7" : "transparent"
+                                    Label {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        elide: Text.ElideRight
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: cellValue
+                                    }
+                                    ToolTip.visible: frozenCellMouseV64.containsMouse
+                                    ToolTip.text: cellValue
+                                    MouseArea {
+                                        id: frozenCellMouseV64
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        pressAndHoldInterval: 500
+                                        onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                        onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                    }
+                                }
+                            }
+                        }
+
+                        Item {
+                            id: scrollingCellsViewportV64
+                            width: Math.max(0, bodyList.width - frozenCellsRowV64.width)
+                            height: parent.height
+                            clip: true
+
                             Row {
-                                anchors.fill: parent
-
-                                Row {
-                                    id: frozenCellsRow
-                                    width: plugin.frozenWidth()
-                                    height: parent.height
-
-                                    Rectangle {
-                                        width: 90
-                                        height: parent.height
+                                x: -plugin.horizontalOffset
+                                height: parent.height
+                                Repeater {
+                                    model: Math.max(0, plugin.displayedColumns.length - plugin.frozenColumnCount)
+                                    delegate: Rectangle {
+                                        required property int index
+                                        property int actualIndex: index + plugin.frozenColumnCount
+                                        property var columnData: plugin.displayedColumns[actualIndex]
+                                        property string cellValue: columnData ? String(plugin.rowValue(modelData, columnData.originalIndex)) : ""
+                                        width: columnData ? columnData.width : 140
+                                        height: scrollingCellsViewportV64.height
                                         border.width: 1
                                         border.color: Theme.lightGray
-                                        color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === -1
+                                        color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === columnData.originalIndex
                                                ? "#dff2c7" : "transparent"
                                         Label {
                                             anchors.fill: parent
                                             anchors.margins: 6
-                                            text: modelData.featureId
-                                            verticalAlignment: Text.AlignVCenter
                                             elide: Text.ElideRight
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: cellValue
                                         }
-                                        ToolTip.visible: entityCellMouse.containsMouse
-                                        ToolTip.text: String(modelData.featureId)
+                                        ToolTip.visible: scrollingCellMouseV64.containsMouse
+                                        ToolTip.text: cellValue
                                         MouseArea {
-                                            id: entityCellMouse
+                                            id: scrollingCellMouseV64
                                             anchors.fill: parent
                                             hoverEnabled: true
                                             pressAndHoldInterval: 500
-                                            onClicked: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
-                                            onPressAndHold: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
-                                        }
-                                    }
-
-                                    Repeater {
-                                        model: Math.min(plugin.frozenColumnCount, plugin.displayedColumns.length)
-                                        delegate: Rectangle {
-                                            required property int index
-                                            property var columnData: plugin.displayedColumns[index]
-                                            property string cellValue: columnData ? String(plugin.rowValue(modelData, columnData.originalIndex)) : ""
-                                            width: columnData ? columnData.width : 140
-                                            height: frozenCellsRow.height
-                                            border.width: 1
-                                            border.color: Theme.lightGray
-                                            color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === columnData.originalIndex
-                                                   ? "#dff2c7" : "transparent"
-                                            Label {
-                                                anchors.fill: parent
-                                                anchors.margins: 6
-                                                elide: Text.ElideRight
-                                                verticalAlignment: Text.AlignVCenter
-                                                text: cellValue
-                                            }
-                                            ToolTip.visible: frozenCellMouse.containsMouse
-                                            ToolTip.text: cellValue
-                                            MouseArea {
-                                                id: frozenCellMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                pressAndHoldInterval: 500
-                                                onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Item {
-                                    id: scrollingCellsViewport
-                                    width: Math.max(0, rowsColumn.width - frozenCellsRow.width)
-                                    height: parent.height
-                                    clip: true
-
-                                    Row {
-                                        x: -plugin.horizontalOffset
-                                        height: parent.height
-                                        Repeater {
-                                            model: Math.max(0, plugin.displayedColumns.length - plugin.frozenColumnCount)
-                                            delegate: Rectangle {
-                                                required property int index
-                                                property int actualIndex: index + plugin.frozenColumnCount
-                                                property var columnData: plugin.displayedColumns[actualIndex]
-                                                property string cellValue: columnData ? String(plugin.rowValue(modelData, columnData.originalIndex)) : ""
-                                                width: columnData ? columnData.width : 140
-                                                height: scrollingCellsViewport.height
-                                                border.width: 1
-                                                border.color: Theme.lightGray
-                                                color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === columnData.originalIndex
-                                                       ? "#dff2c7" : "transparent"
-                                                Label {
-                                                    anchors.fill: parent
-                                                    anchors.margins: 6
-                                                    elide: Text.ElideRight
-                                                    verticalAlignment: Text.AlignVCenter
-                                                    text: cellValue
-                                                }
-                                                ToolTip.visible: scrollingCellMouse.containsMouse
-                                                ToolTip.text: cellValue
-                                                MouseArea {
-                                                    id: scrollingCellMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    pressAndHoldInterval: 500
-                                                    onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                    onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
-                                                }
-                                            }
+                                            onClicked: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
+                                            onPressAndHold: plugin.selectCell(modelData.featureId, columnData.originalIndex, cellValue)
                                         }
                                     }
                                 }
                             }
-
                         }
                     }
                 }

@@ -1,6 +1,6 @@
 [general]
 name=QField Table
-version=0.6.3
+version=0.6.4
 description=Table d'attributs pour QField avec chargement optimisé, filtres, colonnes persistantes, inspecteur et zoom vers l’entité.
 author=Dominic Martin
 qfield_version=4.0
