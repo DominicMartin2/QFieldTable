@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.0
-description=QField Table avec filtres multicritères, colonnes personnalisables et première édition en lot sécurisée.
+version=0.8.1
+description=QField Table avec modification en lot sur colonnes visibles et meilleure détection des champs relationnels multiples.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

@@ -27,7 +27,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.0 — sélection et modification en lot.
+    // v0.8.1 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -41,7 +41,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.0 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.1 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -138,12 +138,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.0 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.0 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -223,7 +223,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.0 iterator: " + error)
+            console.log("QField Table v0.8.1 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -266,7 +266,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.0 filtered iterator: " + error)
+            console.log("QField Table v0.8.1 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -388,7 +388,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.0 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.1 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -446,7 +446,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.0 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.1 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -502,7 +502,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.0 configuration invalide: " + e)
+            console.log("QField Table v0.8.1 configuration invalide: " + e)
             return ({})
         }
     }
@@ -526,7 +526,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.0 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.1 lecture propriété couche: " + e)
         }
         return null
     }
@@ -558,7 +558,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.0 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.1 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1210,29 +1210,134 @@ Item {
         catch (e) { return "" }
     }
 
+    function batchSetupValue(object, name, fallback) {
+        if (object === null || object === undefined) return fallback
+        try {
+            if (typeof object[name] === "function") return object[name]()
+            if (object[name] !== undefined) return object[name]
+        } catch (e) {}
+        return fallback
+    }
+
+    function batchWidgetInfo(columnIndex) {
+        var info = { "type": "", "config": ({}) }
+        if (!selectedLayer || columnIndex < 0 || columnIndex >= columns.length) return info
+
+        try {
+            var fieldIndex = Number(columns[columnIndex].fieldIndex)
+            var setup = selectedLayer.editorWidgetSetup(fieldIndex)
+            if (!setup) return info
+
+            info.type = String(batchSetupValue(setup, "type", "") || "")
+            var cfg = batchSetupValue(setup, "config", ({}))
+            if (cfg) info.config = cfg
+        } catch (e) {
+            console.log("QField Table v0.8.1 widget info: " + e)
+        }
+
+        return info
+    }
+
+    function batchConfigBoolean(config, names) {
+        if (!config) return false
+
+        for (var i = 0; i < names.length; ++i) {
+            var key = names[i]
+            try {
+                var value = config[key]
+                if (value === undefined || value === null) continue
+
+                if (value === true || value === 1) return true
+
+                var text = String(value).toLowerCase().trim()
+                if (text === "true" || text === "1" || text === "yes")
+                    return true
+            } catch (e) {}
+        }
+
+        return false
+    }
+
+    function widgetSaysMultiple(columnIndex) {
+        var info = batchWidgetInfo(columnIndex)
+        var type = String(info.type || "").toLowerCase()
+        var cfg = info.config || ({})
+
+        // ValueRelation est le cas principal de QField/QGIS.
+        // Selon les versions, la clé peut être AllowMulti ou allowMulti.
+        if (type === "valuerelation" &&
+            batchConfigBoolean(cfg, ["AllowMulti", "allowMulti", "Multi", "multi"]))
+            return true
+
+        // Certains projets utilisent un widget relationnel / checkboxes
+        // dont la configuration expose directement une notion multiple.
+        if (batchConfigBoolean(cfg, ["AllowMulti", "allowMulti", "Multi", "multi",
+                                     "Multiple", "multiple"]))
+            return true
+
+        return false
+    }
+
+    function aliasSuggestsMultiple(columnIndex) {
+        if (columnIndex < 0 || columnIndex >= columns.length) return false
+        var col = columns[columnIndex]
+        var label = String((col.alias || col.fieldName || "")).toLowerCase()
+
+        // Fallback utile dans les projets où l'API QML ne restitue pas
+        // complètement editorWidgetSetup(). Ce n'est jamais le seul critère.
+        return label.indexOf("(multiples)") >= 0 ||
+               label.indexOf("(multiple)") >= 0 ||
+               label.indexOf(" multiples") >= 0
+    }
+
     function fieldLooksMultiple(columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.length) return false
+
+        // 1. Configuration du widget : fiable même si toutes les valeurs
+        // sélectionnées sont actuellement vides.
+        if (widgetSaysMultiple(columnIndex))
+            return true
+
+        // 2. Indice fourni par l'alias du projet, utilisé comme fallback
+        // lorsque QField n'expose pas toute la configuration du widget.
+        if (aliasSuggestsMultiple(columnIndex))
+            return true
+
+        // 3. Dernier recours : regarder la forme réellement stockée.
         var rows = selectedBatchRows()
         if (rows.length === 0) rows = filteredRows
-        var inspected = Math.min(rows.length, 50)
+
+        var inspected = Math.min(rows.length, 100)
         for (var i = 0; i < inspected; ++i) {
             var raw = String(rawAttributeForRow(rows[i], columnIndex) || "").trim()
-            if (raw.charAt(0) === "{" && raw.charAt(raw.length - 1) === "}") return true
+            if (raw.charAt(0) === "{" && raw.charAt(raw.length - 1) === "}")
+                return true
         }
+
         return false
     }
 
     function rebuildBatchFieldItems() {
         var result = []
-        for (var i = 0; i < columns.length; ++i) {
-            var col = columns[i]
+
+        // L'utilisateur choisit uniquement parmi les colonnes réellement
+        // visibles dans la table, et dans le même ordre d'affichage.
+        for (var p = 0; p < displayedColumns.length; ++p) {
+            var displayed = displayedColumns[p]
+            if (!displayed) continue
+
+            var originalIndex = Number(displayed.originalIndex)
+            var col = columns[originalIndex]
             if (!col || col.technicalHidden === true) continue
+            if (columnVisibility[String(originalIndex)] === false) continue
+
             result.push({
-                "columnIndex": i,
+                "columnIndex": originalIndex,
                 "label": col.alias || col.fieldName || qsTr("Champ"),
                 "fieldName": col.fieldName || ""
             })
         }
+
         batchFieldItems = result
     }
 
@@ -1355,7 +1460,7 @@ Item {
                 if (batchSaveModel.save(true)) batchSuccessCount++
                 else batchFailedIds.push(String(row.featureId))
             } catch (e) {
-                console.log("QField Table v0.8.0 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.1 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
             }
         }
@@ -1369,7 +1474,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.0 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.1 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -1695,7 +1800,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.0 zoom: " + zoomError)
+            console.log("QField Table v0.8.1 zoom: " + zoomError)
             return false
         }
     }
@@ -1785,7 +1890,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.0 chargé")
+        console.log("QField Table v0.8.1 chargé")
     }
 
     Connections {
@@ -1883,7 +1988,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.0")
+        title: qsTr("QField Table — v0.8.1")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -2353,7 +2458,7 @@ Item {
                 }
             }
 
-            // v0.8.0 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.1 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -2795,7 +2900,11 @@ Item {
 
         onOpened: {
             batchFieldCombo.currentIndex = 0
-            batchOperationCombo.currentIndex = 0
+            if (plugin.batchFieldItems.length > 0)
+                plugin.batchFieldChanged(0)
+            batchOperationCombo.currentIndex =
+                plugin.batchOperation === "remove" ? 1 :
+                plugin.batchOperation === "replaceall" ? 2 : 0
             batchRelationCombo.currentIndex = -1
             batchValueInput.text = ""
         }
