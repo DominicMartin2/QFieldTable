@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.2
-description=QField Table avec édition en lot, valeurs relationnelles complètes, création de valeurs et journal avant/après.
+version=0.8.2.1
+description=Correctif v0.8.2 : synchronisation fiable des valeurs relationnelles et détection renforcée des ValueRelation.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
