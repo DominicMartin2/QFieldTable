@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.7.0
-description=Table attributaire QField avec filtres multicritères, colonnes redimensionnables et partage de vues.
+version=0.7.1
+description=Table attributaire QField avec filtres multicritères par en-tête, colonnes redimensionnables, gestion à deux panneaux et partage de vues.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
