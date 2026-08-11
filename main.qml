@@ -27,10 +27,21 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
+    // v0.8.0 — sélection et modification en lot.
+    property var batchSelectedIds: ({})
+    property var batchFieldItems: []
+    property var batchRelationItems: []
+    property int batchFieldColumn: -1
+    property string batchOperation: "replace"
+    property string batchValueText: ""
+    property string batchRelationRawValue: ""
+    property int batchSuccessCount: 0
+    property var batchFailedIds: []
+    property bool batchInProgress: false
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.7.1.2 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.0 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -127,12 +138,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.7.1.2 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.0 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.7.1.2 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.0 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -212,7 +223,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.7.1.2 iterator: " + error)
+            console.log("QField Table v0.8.0 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -255,7 +266,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.7.1.2 filtered iterator: " + error)
+            console.log("QField Table v0.8.0 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -377,7 +388,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.7.1.2 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.0 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -435,7 +446,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.7.1.2 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.0 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -491,7 +502,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.7.1.2 configuration invalide: " + e)
+            console.log("QField Table v0.8.0 configuration invalide: " + e)
             return ({})
         }
     }
@@ -515,7 +526,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.7.1.2 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.0 lecture propriété couche: " + e)
         }
         return null
     }
@@ -547,7 +558,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.7.1.2 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.0 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1109,9 +1120,256 @@ Item {
         }
     }
 
+
+    function batchSelectionCount() {
+        var count = 0
+        for (var key in batchSelectedIds)
+            if (batchSelectedIds[key] === true) count++
+        return count
+    }
+
+    function isBatchSelected(featureIdValue) {
+        return batchSelectedIds[String(featureIdValue)] === true
+    }
+
+    function setBatchSelected(featureIdValue, checked) {
+        var copy = ({})
+        for (var key in batchSelectedIds) copy[key] = batchSelectedIds[key] === true
+        if (checked) copy[String(featureIdValue)] = true
+        else delete copy[String(featureIdValue)]
+        batchSelectedIds = copy
+    }
+
+    function clearBatchSelection() {
+        batchSelectedIds = ({})
+    }
+
+    function selectAllFilteredRows() {
+        var copy = ({})
+        for (var i = 0; i < filteredRows.length; ++i)
+            copy[String(filteredRows[i].featureId)] = true
+        batchSelectedIds = copy
+    }
+
+    function selectedBatchRows() {
+        var result = []
+        for (var i = 0; i < flatRows.length; ++i)
+            if (isBatchSelected(flatRows[i].featureId)) result.push(flatRows[i])
+        return result
+    }
+
+    function parseStoredCollection(rawValue) {
+        var text = String(rawValue === undefined || rawValue === null ? "" : rawValue).trim()
+        if (text.length === 0 || text === "{}") return []
+        if (text.charAt(0) === "{" && text.charAt(text.length - 1) === "}")
+            text = text.substring(1, text.length - 1)
+
+        var result = []
+        var current = ""
+        var quoted = false
+        for (var i = 0; i < text.length; ++i) {
+            var ch = text.charAt(i)
+            if (ch === '"') {
+                quoted = !quoted
+                continue
+            }
+            if (ch === "," && !quoted) {
+                if (current.trim().length > 0) result.push(current.trim())
+                current = ""
+            } else current += ch
+        }
+        if (current.trim().length > 0) result.push(current.trim())
+        return result
+    }
+
+    function collectionContains(values, value) {
+        var needle = String(value)
+        for (var i = 0; i < values.length; ++i)
+            if (String(values[i]) === needle) return true
+        return false
+    }
+
+    function serializeStoredCollection(values) {
+        var clean = []
+        for (var i = 0; i < values.length; ++i) {
+            var value = String(values[i] === undefined || values[i] === null ? "" : values[i]).trim()
+            if (value.length === 0 || collectionContains(clean, value)) continue
+            clean.push(value)
+        }
+        if (clean.length === 0) return "{}"
+
+        var quoted = []
+        for (var j = 0; j < clean.length; ++j)
+            quoted.push('"' + clean[j].replace(/"/g, '\\"') + '"')
+        return "{" + quoted.join(",") + "}"
+    }
+
+    function rawAttributeForRow(row, columnIndex) {
+        if (!row || columnIndex < 0 || columnIndex >= columns.length) return ""
+        try { return readAttribute(row.feature, columns[columnIndex]) }
+        catch (e) { return "" }
+    }
+
+    function fieldLooksMultiple(columnIndex) {
+        if (columnIndex < 0 || columnIndex >= columns.length) return false
+        var rows = selectedBatchRows()
+        if (rows.length === 0) rows = filteredRows
+        var inspected = Math.min(rows.length, 50)
+        for (var i = 0; i < inspected; ++i) {
+            var raw = String(rawAttributeForRow(rows[i], columnIndex) || "").trim()
+            if (raw.charAt(0) === "{" && raw.charAt(raw.length - 1) === "}") return true
+        }
+        return false
+    }
+
+    function rebuildBatchFieldItems() {
+        var result = []
+        for (var i = 0; i < columns.length; ++i) {
+            var col = columns[i]
+            if (!col || col.technicalHidden === true) continue
+            result.push({
+                "columnIndex": i,
+                "label": col.alias || col.fieldName || qsTr("Champ"),
+                "fieldName": col.fieldName || ""
+            })
+        }
+        batchFieldItems = result
+    }
+
+    function rebuildBatchRelationItems(columnIndex) {
+        var seen = ({})
+        var result = []
+        for (var r = 0; r < flatRows.length; ++r) {
+            var row = flatRows[r]
+            var tokens = parseStoredCollection(rawAttributeForRow(row, columnIndex))
+            if (tokens.length === 1) {
+                var token = String(tokens[0])
+                if (!seen[token]) {
+                    seen[token] = true
+                    var display = String(rowValue(row, columnIndex) || token)
+                    result.push({"rawValue": token, "label": display.length > 0 ? display : token})
+                }
+            } else {
+                for (var t = 0; t < tokens.length; ++t) {
+                    var rawToken = String(tokens[t])
+                    if (!seen[rawToken]) {
+                        seen[rawToken] = true
+                        result.push({"rawValue": rawToken, "label": rawToken})
+                    }
+                }
+            }
+        }
+        result.sort(function(a,b) { return String(a.label).localeCompare(String(b.label)) })
+        batchRelationItems = result
+    }
+
+    function openBatchEditDialog() {
+        if (batchSelectionCount() === 0) {
+            diagnosticMessage = qsTr("Sélectionnez au moins un enregistrement avant la modification en lot.")
+            return
+        }
+        rebuildBatchFieldItems()
+        batchFieldColumn = batchFieldItems.length > 0 ? Number(batchFieldItems[0].columnIndex) : -1
+        batchOperation = "replace"
+        batchValueText = ""
+        batchRelationRawValue = ""
+        batchRelationItems = []
+        if (batchFieldColumn >= 0 && fieldLooksMultiple(batchFieldColumn))
+            rebuildBatchRelationItems(batchFieldColumn)
+        batchEditDialog.open()
+    }
+
+    function batchFieldChanged(itemIndex) {
+        if (itemIndex < 0 || itemIndex >= batchFieldItems.length) return
+        batchFieldColumn = Number(batchFieldItems[itemIndex].columnIndex)
+        batchOperation = fieldLooksMultiple(batchFieldColumn) ? "add" : "replace"
+        batchValueText = ""
+        batchRelationRawValue = ""
+        if (fieldLooksMultiple(batchFieldColumn)) rebuildBatchRelationItems(batchFieldColumn)
+        else batchRelationItems = []
+    }
+
+    function batchNewRawValue(row) {
+        if (batchFieldColumn < 0 || batchFieldColumn >= columns.length) return null
+        if (!fieldLooksMultiple(batchFieldColumn)) return batchValueText
+
+        var chosen = String(batchRelationRawValue || batchValueText || "").trim()
+        if (chosen.length === 0) return null
+        var existing = parseStoredCollection(rawAttributeForRow(row, batchFieldColumn))
+
+        if (batchOperation === "add") {
+            if (!collectionContains(existing, chosen)) existing.push(chosen)
+            return serializeStoredCollection(existing)
+        }
+
+        if (batchOperation === "remove") {
+            var remaining = []
+            for (var i = 0; i < existing.length; ++i)
+                if (String(existing[i]) !== chosen) remaining.push(existing[i])
+            return serializeStoredCollection(remaining)
+        }
+
+        return serializeStoredCollection([chosen])
+    }
+
+    function executeBatchEdit() {
+        var rows = selectedBatchRows()
+        if (rows.length === 0 || batchFieldColumn < 0) return
+
+        batchSuccessCount = 0
+        batchFailedIds = []
+        batchInProgress = true
+        var fieldName = columns[batchFieldColumn].fieldName
+
+        for (var i = 0; i < rows.length; ++i) {
+            var row = rows[i]
+            var newValue = batchNewRawValue(row)
+            if (newValue === null || newValue === undefined) {
+                batchFailedIds.push(String(row.featureId))
+                continue
+            }
+
+            try {
+                var oldRawValue = rawAttributeForRow(row, batchFieldColumn)
+                if (String(oldRawValue) === String(newValue)) {
+                    // Valeur déjà conforme : aucune écriture nécessaire.
+                    batchSuccessCount++
+                    continue
+                }
+
+                batchSaveModel.currentLayer = selectedLayer
+                batchSaveModel.feature = row.feature
+
+                var edited = batchSaveModel.feature
+                var setOk = edited.setAttribute(fieldName, newValue)
+                if (!setOk) {
+                    batchFailedIds.push(String(row.featureId))
+                    continue
+                }
+
+                if (!batchSaveModel.updateAttributesFromFeature(edited)) {
+                    batchFailedIds.push(String(row.featureId))
+                    continue
+                }
+
+                if (batchSaveModel.save(true)) batchSuccessCount++
+                else batchFailedIds.push(String(row.featureId))
+            } catch (e) {
+                console.log("QField Table v0.8.0 batch feature " + row.featureId + ": " + e)
+                batchFailedIds.push(String(row.featureId))
+            }
+        }
+
+        batchInProgress = false
+        batchConfirmDialog.close()
+        batchEditDialog.close()
+        reloadFeaturesOnly()
+        batchResultDialog.open()
+    }
+
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.7.1.2 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.0 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -1127,7 +1385,7 @@ Item {
     }
 
     function frozenWidth() {
-        var total = 90
+        var total = 126
         var count = Math.min(frozenColumnCount, displayedColumns.length)
         for (var i = 0; i < count; ++i) total += displayedColumns[i].width
         return total
@@ -1437,7 +1695,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.7.1.2 zoom: " + zoomError)
+            console.log("QField Table v0.8.0 zoom: " + zoomError)
             return false
         }
     }
@@ -1527,7 +1785,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.7.1.2 chargé")
+        console.log("QField Table v0.8.0 chargé")
     }
 
     Connections {
@@ -1625,7 +1883,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.7.1.2")
+        title: qsTr("QField Table — v0.8.0")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1674,6 +1932,22 @@ Item {
             }
 
             RowLayout {
+                Button {
+                    text: qsTr("☑ Tout filtré")
+                    enabled: plugin.filteredRows.length > 0
+                    onClicked: plugin.selectAllFilteredRows()
+                }
+                Button {
+                    text: qsTr("☐ Aucun")
+                    enabled: plugin.batchSelectionCount() > 0
+                    onClicked: plugin.clearBatchSelection()
+                }
+                Button {
+                    text: qsTr("Modifier en lot… (%1)").arg(plugin.batchSelectionCount())
+                    enabled: plugin.batchSelectionCount() > 0
+                    onClicked: plugin.openBatchEditDialog()
+                }
+
                 Layout.fillWidth: true
                 spacing: 8
 
@@ -1728,6 +2002,25 @@ Item {
                 property var referenceFeature: plugin.previewFeatures.length > 0 ? plugin.previewFeatures[0] : null
 
                 FeatureModel {
+
+
+                    id: batchSaveModel
+
+
+                    project: qgisProject
+
+
+                    currentLayer: plugin.selectedLayer
+
+
+                    modelMode: FeatureModel.SingleFeatureModel
+
+
+                }
+
+
+
+                FeatureModel {
                     id: referenceFeatureModel
                     currentLayer: plugin.selectedLayer
                     feature: schemaCollector.referenceFeature
@@ -1773,7 +2066,7 @@ Item {
                         height: parent.height
 
                         Rectangle {
-                            width: 90
+                            width: 126
                             height: parent.height
                             border.width: 1
                             border.color: Theme.lightGray
@@ -1782,7 +2075,7 @@ Item {
                                 anchors.fill: parent
                                 anchors.margins: 6
                                 font.bold: true
-                                text: qsTr("Entité")
+                                text: qsTr("Lot / Entité")
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
@@ -2060,7 +2353,7 @@ Item {
                 }
             }
 
-            // v0.7.1.2 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.0 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -2098,24 +2391,44 @@ Item {
                             height: parent.height
 
                             Rectangle {
-                                width: 90
+                                width: 126
                                 height: parent.height
                                 border.width: 1
                                 border.color: Theme.lightGray
                                 color: plugin.selectedFeatureId === String(modelData.featureId) && plugin.selectedCellColumn === -1
                                        ? "#dff2c7" : "transparent"
-                                Label {
+
+                                RowLayout {
                                     anchors.fill: parent
-                                    anchors.margins: 6
-                                    text: modelData.featureId
-                                    verticalAlignment: Text.AlignVCenter
-                                    elide: Text.ElideRight
+                                    anchors.leftMargin: 4
+                                    anchors.rightMargin: 4
+                                    spacing: 3
+
+                                    CheckBox {
+                                        checked: plugin.isBatchSelected(modelData.featureId)
+                                        onToggled: plugin.setBatchSelected(modelData.featureId, checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Sélection pour modification en lot")
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.featureId
+                                        verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
+                                    }
                                 }
+
                                 ToolTip.visible: entityCellMouseV64.containsMouse
                                 ToolTip.text: String(modelData.featureId)
+
                                 MouseArea {
                                     id: entityCellMouseV64
-                                    anchors.fill: parent
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 42
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
                                     hoverEnabled: true
                                     pressAndHoldInterval: 500
                                     onClicked: plugin.selectCell(modelData.featureId, -1, modelData.featureId)
@@ -2465,6 +2778,254 @@ Item {
                 Item { Layout.fillWidth: true }
                 Button { text: qsTr("Annuler"); onClicked: loadDialog.close() }
                 Button { text: qsTr("Charger avec le préfiltre"); onClicked: plugin.loadWithPreFilter() }
+            }
+        }
+    }
+
+    QfDialog {
+        id: batchEditDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Modification en lot")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(620, parent.width * 0.46) : 700
+        height: parent ? Math.max(480, parent.height * 0.58) : 560
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        onOpened: {
+            batchFieldCombo.currentIndex = 0
+            batchOperationCombo.currentIndex = 0
+            batchRelationCombo.currentIndex = -1
+            batchValueInput.text = ""
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("%1 enregistrement(s) sélectionné(s)").arg(plugin.batchSelectionCount())
+                font.bold: true
+                font.pixelSize: 17
+            }
+
+            Label { text: qsTr("Champ à modifier") }
+
+            ComboBox {
+                id: batchFieldCombo
+                Layout.fillWidth: true
+                model: plugin.batchFieldItems
+                textRole: "label"
+                onActivated: plugin.batchFieldChanged(currentIndex)
+            }
+
+            Label {
+                visible: plugin.batchFieldColumn >= 0 &&
+                         plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+                text: qsTr("Opération sur le tableau multiple")
+            }
+
+            ComboBox {
+                id: batchOperationCombo
+                Layout.fillWidth: true
+                visible: plugin.batchFieldColumn >= 0 &&
+                         plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+                model: [
+                    qsTr("Ajouter une valeur"),
+                    qsTr("Retirer une valeur"),
+                    qsTr("Remplacer toutes les valeurs")
+                ]
+                onActivated: {
+                    plugin.batchOperation =
+                        currentIndex === 1 ? "remove" :
+                        currentIndex === 2 ? "replaceall" : "add"
+                }
+            }
+
+            Label {
+                text: plugin.batchFieldColumn >= 0 &&
+                      plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+                      ? qsTr("Valeur relationnelle")
+                      : qsTr("Nouvelle valeur")
+            }
+
+            ComboBox {
+                id: batchRelationCombo
+                Layout.fillWidth: true
+                visible: plugin.batchFieldColumn >= 0 &&
+                         plugin.fieldLooksMultiple(plugin.batchFieldColumn) &&
+                         plugin.batchRelationItems.length > 0
+                model: plugin.batchRelationItems
+                textRole: "label"
+                onActivated: {
+                    if (currentIndex >= 0 && currentIndex < plugin.batchRelationItems.length)
+                        plugin.batchRelationRawValue =
+                            String(plugin.batchRelationItems[currentIndex].rawValue)
+                }
+            }
+
+            TextField {
+                id: batchValueInput
+                Layout.fillWidth: true
+                placeholderText: plugin.batchFieldColumn >= 0 &&
+                                 plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+                                 ? qsTr("Ou saisir la clé brute si elle n'apparaît pas dans la liste")
+                                 : qsTr("Valeur à appliquer")
+                onTextChanged: plugin.batchValueText = text
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.batchFieldColumn >= 0 &&
+                         plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+                text: qsTr("Les choix proposés proviennent des clés déjà rencontrées dans les enregistrements chargés. Une clé brute peut aussi être saisie manuellement.")
+                wrapMode: Text.WordWrap
+                opacity: 0.68
+            }
+
+            Item { Layout.fillHeight: true }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: qsTr("Annuler"); onClicked: batchEditDialog.close() }
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("Continuer…")
+                    enabled: plugin.batchFieldColumn >= 0 &&
+                             (
+                               (plugin.fieldLooksMultiple(plugin.batchFieldColumn) &&
+                                (plugin.batchRelationRawValue.length > 0 ||
+                                 plugin.batchValueText.trim().length > 0))
+                               ||
+                               (!plugin.fieldLooksMultiple(plugin.batchFieldColumn))
+                             )
+                    onClicked: batchConfirmDialog.open()
+                }
+            }
+        }
+    }
+
+    QfDialog {
+        id: batchConfirmDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Confirmer la modification en lot")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(560, parent.width * 0.40) : 640
+        height: 330
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("%1 enregistrement(s) seront modifié(s).")
+                      .arg(plugin.batchSelectionCount())
+                font.bold: true
+                font.pixelSize: 18
+            }
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: plugin.batchFieldColumn >= 0 && plugin.batchFieldColumn < plugin.columns.length
+                      ? qsTr("Champ : %1")
+                        .arg(plugin.columns[plugin.batchFieldColumn].alias ||
+                             plugin.columns[plugin.batchFieldColumn].fieldName)
+                      : ""
+            }
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: plugin.batchFieldColumn >= 0 &&
+                      plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+                      ? qsTr("Opération : %1\nValeur : %2")
+                        .arg(plugin.batchOperation === "add" ? qsTr("Ajouter") :
+                             plugin.batchOperation === "remove" ? qsTr("Retirer") :
+                             qsTr("Remplacer toutes les valeurs"))
+                        .arg(plugin.batchRelationRawValue.length > 0
+                             ? plugin.batchRelationRawValue
+                             : plugin.batchValueText)
+                      : qsTr("Nouvelle valeur : %1").arg(plugin.batchValueText)
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Cette opération écrit réellement dans la couche. Vérifiez la sélection avant de continuer.")
+                wrapMode: Text.WordWrap
+                color: "#a06000"
+            }
+
+            Item { Layout.fillHeight: true }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: qsTr("Retour"); onClicked: batchConfirmDialog.close() }
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("Confirmer et modifier")
+                    enabled: !plugin.batchInProgress
+                    onClicked: plugin.executeBatchEdit()
+                }
+            }
+        }
+    }
+
+    QfDialog {
+        id: batchResultDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Résultat de la modification en lot")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(520, parent.width * 0.38) : 600
+        height: 330
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("%1 enregistrement(s) modifié(s) avec succès.")
+                      .arg(plugin.batchSuccessCount)
+                font.bold: true
+                font.pixelSize: 18
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.batchFailedIds.length > 0
+                text: qsTr("%1 échec(s) : %2")
+                      .arg(plugin.batchFailedIds.length)
+                      .arg(plugin.batchFailedIds.join(", "))
+                wrapMode: Text.WordWrap
+                color: "#a03030"
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.batchFailedIds.length === 0
+                text: qsTr("La table a été actualisée avec les valeurs enregistrées.")
+                wrapMode: Text.WordWrap
+            }
+
+            Item { Layout.fillHeight: true }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("Fermer")
+                    onClicked: {
+                        batchResultDialog.close()
+                        plugin.clearBatchSelection()
+                    }
+                }
             }
         }
     }

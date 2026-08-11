@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.7.1.2
-description=Correctif de redimensionnement des colonnes pour QField Table v0.7.1.
+version=0.8.0
+description=QField Table avec filtres multicritères, colonnes personnalisables et première édition en lot sécurisée.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
