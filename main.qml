@@ -30,7 +30,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.6.7 : cache des libellés ValueRelation / ValueMap.
+    // v0.7.0 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -47,6 +47,8 @@ Item {
     property var distinctValues: []
     property var visibleDistinctValues: []
     property var selectedDistinctKeys: ({})
+    property var activeColumnFilters: ({})
+    property string sharedViewCode: ""
     property string distinctSearchText: ""
     property string selectedCellAlias: ""
     property string selectedCellFieldName: ""
@@ -117,12 +119,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.6.7 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.7.0 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.6.7 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.7.0 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -164,6 +166,7 @@ Item {
         distinctValues = []
         visibleDistinctValues = []
         selectedDistinctKeys = ({})
+        activeColumnFilters = ({})
         distinctSearchText = ""
         selectedCellAlias = ""
         selectedCellFieldName = ""
@@ -202,7 +205,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.6.7 iterator: " + error)
+            console.log("QField Table v0.7.0 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -245,7 +248,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.6.7 filtered iterator: " + error)
+            console.log("QField Table v0.7.0 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -367,7 +370,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.6.7 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.7.0 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -425,7 +428,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.6.7 : ne parcourt plus toutes les cellules au chargement.
+        // v0.7.0 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -481,7 +484,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.6.7 configuration invalide: " + e)
+            console.log("QField Table v0.7.0 configuration invalide: " + e)
             return ({})
         }
     }
@@ -505,7 +508,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.6.7 lecture propriété couche: " + e)
+            console.log("QField Table v0.7.0 lecture propriété couche: " + e)
         }
         return null
     }
@@ -537,7 +540,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.6.7 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.7.0 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -804,9 +807,113 @@ Item {
         return count
     }
 
+    function setColumnWidth(columnIndex, newWidth) {
+        if (columnIndex < 0 || columnIndex >= columns.length) return
+        var a=[]
+        for (var i=0;i<columns.length;++i) {
+            var c=columns[i]
+            a.push({"alias":c.alias,"fieldName":c.fieldName,"fieldIndex":c.fieldIndex,
+                    "sampleValue":c.sampleValue,"width":i===columnIndex?Math.max(70,Math.min(700,newWidth)):c.width,
+                    "technicalHidden":c.technicalHidden===true})
+        }
+        columns=a
+        refreshDisplayedColumns()
+        saveColumnConfiguration()
+    }
+
+    function hasActiveFilter(columnIndex) {
+        return activeColumnFilters[String(columnIndex)] !== undefined
+    }
+
+    function openHeaderFilter(columnIndex) {
+        filterColumn=columnIndex
+        var f=activeColumnFilters[String(columnIndex)]
+        filterMode=f ? f.mode : "values"
+        filterText=f ? (f.text||"") : ""
+        rebuildDistinctValues()
+        if (f && f.selected) selectedDistinctKeys=cloneSelection(f.selected)
+        pendingDistinctKeys=cloneSelection(selectedDistinctKeys)
+        distinctSearchText=""
+        filterDistinctList()
+        distinctFilterDialog.open()
+    }
+
+    function storeCurrentColumnFilter() {
+        if (filterColumn<0) return
+        var c=({})
+        for (var k in activeColumnFilters) c[k]=activeColumnFilters[k]
+        c[String(filterColumn)]={"mode":filterMode,"text":String(filterText||""),
+                                 "selected":cloneSelection(selectedDistinctKeys)}
+        activeColumnFilters=c
+    }
+
+    function rowMatchesAllFilters(row) {
+        for (var k in activeColumnFilters) {
+            var idx=Number(k), f=activeColumnFilters[k]
+            var value=rowValue(row,idx)
+            var text=String(value===undefined||value===null?"":value)
+            var needle=String(f.text||"").toLowerCase().trim()
+            if (f.mode==="values" && (!f.selected || f.selected[distinctKey(value)]!==true)) return false
+            if (f.mode==="empty" && !valueIsEmpty(value)) return false
+            if (f.mode==="notempty" && valueIsEmpty(value)) return false
+            if (f.mode==="equals" && text.toLowerCase()!==needle) return false
+            if (f.mode==="contains" && needle.length>0 && text.toLowerCase().indexOf(needle)<0) return false
+        }
+        return true
+    }
+
+    function clearAllFilters() {
+        activeColumnFilters=({})
+        filterColumn=-1
+        applyView()
+    }
+
+    function makeSharedViewCode() {
+        var fs=[]
+        for (var k in activeColumnFilters) {
+            var idx=Number(k), f=activeColumnFilters[k], vals=[]
+            if (f.selected) for (var v in f.selected) if (f.selected[v]===true) vals.push(v)
+            fs.push({"field":columns[idx].fieldName,"mode":f.mode,"text":f.text||"","values":vals})
+        }
+        var vis=[]
+        for (var p=0;p<columnOrder.length;++p) {
+            var ci=Number(columnOrder[p])
+            if (columns[ci] && !columns[ci].technicalHidden && columnVisibility[String(ci)]!==false)
+                vis.push(columns[ci].fieldName)
+        }
+        sharedViewCode=JSON.stringify({"format":"QFieldTableView","version":1,
+                                      "layer":layerName(selectedLayer),"filters":fs,
+                                      "visibleColumns":vis},null,2)
+        shareText.text=sharedViewCode
+        shareDialog.open()
+    }
+
+    function importSharedViewCode(txt) {
+        try {
+            var d=JSON.parse(String(txt||""))
+            if (!d || d.format!=="QFieldTableView") throw "Format QField Table invalide"
+            var ni=({})
+            for (var i=0;i<columns.length;++i) ni[columns[i].fieldName]=i
+            var af=({})
+            for (var j=0;j<(d.filters||[]).length;++j) {
+                var f=d.filters[j], idx=ni[f.field]
+                if (idx===undefined) continue
+                var s=({})
+                for (var v=0;v<(f.values||[]).length;++v) s[String(f.values[v])]=true
+                af[String(idx)]={"mode":f.mode||"values","text":f.text||"","selected":s}
+            }
+            activeColumnFilters=af
+            applyView()
+            return true
+        } catch(e) {
+            diagnosticMessage=qsTr("Import impossible : %1").arg(String(e))
+            return false
+        }
+    }
+
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.6.7 : la construction initiale ne lit plus chaque attribut de
+        // v0.7.0 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -1020,6 +1127,7 @@ Item {
         }
         distinctValues = updated
         filterDistinctList()
+        storeCurrentColumnFilter()
         applyView()
         distinctFilterDialog.close()
     }
@@ -1069,7 +1177,7 @@ Item {
                     }
                 }
             }
-            if (globalMatch && rowMatchesColumnFilter(row)) result.push(row)
+            if (globalMatch && rowMatchesAllFilters(row)) result.push(row)
         }
 
         if (sortColumn >= 0 && sortColumn < columns.length) {
@@ -1131,7 +1239,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.6.7 zoom: " + zoomError)
+            console.log("QField Table v0.7.0 zoom: " + zoomError)
             return false
         }
     }
@@ -1223,7 +1331,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.6.7 chargé")
+        console.log("QField Table v0.7.0 chargé")
     }
 
     Connections {
@@ -1321,7 +1429,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.6.7")
+        title: qsTr("QField Table — v0.7.0")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1419,6 +1527,14 @@ Item {
                     onClicked: plugin.reopenDistinctFilter()
                 }
                 Button { text: qsTr("Effacer"); onClicked: plugin.clearColumnFilter() }
+                Button {
+                    text: qsTr("Effacer filtres")
+                    onClicked: plugin.clearAllFilters()
+                }
+                Button {
+                    text: qsTr("Partager vue…")
+                    onClicked: plugin.makeSharedViewCode()
+                }
                 Button {
                     text: qsTr("▦ Colonnes…")
                     onClicked: plugin.openColumnManager()
@@ -1526,6 +1642,24 @@ Item {
                                     text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ"))
                                                        + (plugin.sortColumn === columnData.originalIndex ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
                                 }
+                                Rectangle {
+                                    width: 30; height: parent.height
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 14
+                                    color: plugin.hasActiveFilter(columnData.originalIndex) ? "#d9ead9" : "transparent"
+                                    Label { anchors.centerIn: parent; text: plugin.hasActiveFilter(columnData.originalIndex) ? "●▼" : "▼"; font.bold: true }
+                                    MouseArea { anchors.fill: parent; onClicked: plugin.openHeaderFilter(columnData.originalIndex) }
+                                }
+                                Rectangle {
+                                    id: frozenResizeGrip
+                                    width: 14; height: parent.height; anchors.right: parent.right; color: "transparent"
+                                    property real initialWidth: 0
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.SizeHorCursor; preventStealing: true
+                                        onPressed: frozenResizeGrip.initialWidth=columnData.width
+                                        onPositionChanged: function(mouse) { if (pressed) plugin.setColumnWidth(columnData.originalIndex, frozenResizeGrip.initialWidth + mouse.x) }
+                                    }
+                                }
                                 ToolTip.visible: frozenHeaderMouse.containsMouse
                                 ToolTip.text: columnData ? qsTr("%1 — cliquer pour trier").arg(columnData.fieldName) : ""
                                 MouseArea {
@@ -1566,6 +1700,24 @@ Item {
                                         text: columnData ? (columnData.alias || columnData.fieldName || qsTr("Champ"))
                                                            + (plugin.sortColumn === columnData.originalIndex ? (plugin.sortAscending ? " ▲" : " ▼") : "") : ""
                                     }
+                                    Rectangle {
+                                        width: 30; height: parent.height
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 14
+                                        color: plugin.hasActiveFilter(columnData.originalIndex) ? "#d9ead9" : "transparent"
+                                        Label { anchors.centerIn: parent; text: plugin.hasActiveFilter(columnData.originalIndex) ? "●▼" : "▼"; font.bold: true }
+                                        MouseArea { anchors.fill: parent; onClicked: plugin.openHeaderFilter(columnData.originalIndex) }
+                                    }
+                                    Rectangle {
+                                        id: scrollingResizeGrip
+                                        width: 14; height: parent.height; anchors.right: parent.right; color: "transparent"
+                                        property real initialWidth: 0
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.SizeHorCursor; preventStealing: true
+                                            onPressed: scrollingResizeGrip.initialWidth=columnData.width
+                                            onPositionChanged: function(mouse) { if (pressed) plugin.setColumnWidth(columnData.originalIndex, scrollingResizeGrip.initialWidth + mouse.x) }
+                                        }
+                                    }
                                     ToolTip.visible: scrollingHeaderMouse.containsMouse
                                     ToolTip.text: columnData ? qsTr("%1 — cliquer pour trier").arg(columnData.fieldName) : ""
                                     MouseArea {
@@ -1581,7 +1733,7 @@ Item {
                 }
             }
 
-            // v0.6.7 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.7.0 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -2276,7 +2428,75 @@ Item {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
                 Button { text: qsTr("Annuler"); onClicked: plugin.cancelPendingColumns() }
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Ordre des champs sélectionnés")
+                    font.bold: true
+                }
+                ListView {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 180
+                    clip: true
+                    model: plugin.pendingColumnOrder
+                    delegate: Rectangle {
+                        required property var modelData
+                        property int ci: Number(modelData)
+                        visible: plugin.pendingColumnVisibility[String(ci)] !== false &&
+                                 plugin.columns[ci] && plugin.columns[ci].technicalHidden !== true
+                        height: visible ? 40 : 0
+                        width: ListView.view.width
+                        color: index % 2 ? "#f5f5f5" : "transparent"
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                            Label {
+                                Layout.fillWidth: true
+                                text: plugin.columns[ci] ? (plugin.columns[ci].alias || plugin.columns[ci].fieldName) : ""
+                                elide: Text.ElideRight
+                            }
+                            Button { text: "▲"; onClicked: plugin.movePendingColumn(ci,-1) }
+                            Button { text: "▼"; onClicked: plugin.movePendingColumn(ci,1) }
+                        }
+                    }
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.lightGray }
+
                 Button { text: qsTr("Appliquer"); onClicked: plugin.applyPendingColumns() }
+            }
+        }
+    }
+
+
+    Dialog {
+        id: shareDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Partager / importer une vue")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(700,parent.width*0.70) : 800
+        height: parent ? Math.max(520,parent.height*0.68) : 620
+        x: parent ? (parent.width-width)/2 : 0
+        y: parent ? (parent.height-height)/2 : 0
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Ce code contient les filtres actifs. Copiez-le pour le transmettre à un autre utilisateur, ou collez ici un code reçu puis cliquez sur Importer.")
+            }
+            TextArea {
+                id: shareText
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                wrapMode: TextEdit.NoWrap
+                selectByMouse: true
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: qsTr("Copier"); onClicked: { shareText.selectAll(); shareText.copy() } }
+                Button { text: qsTr("Importer"); onClicked: { if(plugin.importSharedViewCode(shareText.text)) shareDialog.close() } }
+                Item { Layout.fillWidth: true }
+                Button { text: qsTr("Fermer"); onClicked: shareDialog.close() }
             }
         }
     }
