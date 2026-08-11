@@ -30,7 +30,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.7.1 : cache des libellés ValueRelation / ValueMap.
+    // v0.7.1.1 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -123,12 +123,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.7.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.7.1.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.7.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.7.1.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -190,7 +190,6 @@ Item {
         draggedTargetInsertPosition = -1
         columnDragIndicatorY = -1
         if (searchField) searchField.text = ""
-        if (columnFilterText) columnFilterText.text = ""
     }
 
     function inspectSelectedLayer() {
@@ -209,7 +208,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.7.1 iterator: " + error)
+            console.log("QField Table v0.7.1.1 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -252,7 +251,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.7.1 filtered iterator: " + error)
+            console.log("QField Table v0.7.1.1 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -374,7 +373,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.7.1 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.7.1.1 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -432,7 +431,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.7.1 : ne parcourt plus toutes les cellules au chargement.
+        // v0.7.1.1 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -488,7 +487,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.7.1 configuration invalide: " + e)
+            console.log("QField Table v0.7.1.1 configuration invalide: " + e)
             return ({})
         }
     }
@@ -512,7 +511,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.7.1 lecture propriété couche: " + e)
+            console.log("QField Table v0.7.1.1 lecture propriété couche: " + e)
         }
         return null
     }
@@ -544,7 +543,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.7.1 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.7.1.1 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1075,7 +1074,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.7.1 : la construction initiale ne lit plus chaque attribut de
+        // v0.7.1.1 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -1401,7 +1400,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.7.1 zoom: " + zoomError)
+            console.log("QField Table v0.7.1.1 zoom: " + zoomError)
             return false
         }
     }
@@ -1472,8 +1471,6 @@ Item {
         distinctValues = []
         visibleDistinctValues = []
         selectedDistinctKeys = ({})
-        if (columnFilterText) columnFilterText.text = ""
-        if (filterModeCombo) filterModeCombo.currentIndex = 1
         applyView()
     }
 
@@ -1493,7 +1490,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.7.1 chargé")
+        console.log("QField Table v0.7.1.1 chargé")
     }
 
     Connections {
@@ -1591,7 +1588,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.7.1")
+        title: qsTr("QField Table — v0.7.1.1")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -1992,7 +1989,7 @@ Item {
                 }
             }
 
-            // v0.7.1 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.7.1.1 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
