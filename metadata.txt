@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.2.1
-description=Correctif v0.8.2 : synchronisation fiable des valeurs relationnelles et détection renforcée des ValueRelation.
+version=0.8.3
+description=QField Table v0.8.3 : ValueRelation lues depuis le formulaire du projet, filtres QGIS respectés et journal avant/après.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
