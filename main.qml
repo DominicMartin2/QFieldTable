@@ -27,7 +27,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.1 — sélection et modification en lot.
+    // v0.8.2 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -38,10 +38,20 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
+    // v0.8.2 — source ValueRelation complète.
+    property var batchRelationLayer: null
+    property string batchRelationLayerId: ""
+    property string batchRelationKeyField: ""
+    property string batchRelationValueField: ""
+    property string batchRelationFilterExpression: ""
+    property string batchNewRelationKey: ""
+    property string batchNewRelationLabel: ""
+    // Journal de sécurité de la session. Une entrée par entité réellement traitée.
+    property var batchJournal: []
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.1 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.2 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -138,12 +148,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.2 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.2 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -223,7 +233,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.1 iterator: " + error)
+            console.log("QField Table v0.8.2 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -266,7 +276,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.1 filtered iterator: " + error)
+            console.log("QField Table v0.8.2 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -388,7 +398,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.1 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.2 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -446,7 +456,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.1 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.2 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -502,7 +512,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.1 configuration invalide: " + e)
+            console.log("QField Table v0.8.2 configuration invalide: " + e)
             return ({})
         }
     }
@@ -526,7 +536,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.1 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.2 lecture propriété couche: " + e)
         }
         return null
     }
@@ -558,7 +568,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.1 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.2 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1232,7 +1242,7 @@ Item {
             var cfg = batchSetupValue(setup, "config", ({}))
             if (cfg) info.config = cfg
         } catch (e) {
-            console.log("QField Table v0.8.1 widget info: " + e)
+            console.log("QField Table v0.8.2 widget info: " + e)
         }
 
         return info
@@ -1341,31 +1351,231 @@ Item {
         batchFieldItems = result
     }
 
+    function batchConfigString(config, names) {
+        if (!config) return ""
+        for (var i = 0; i < names.length; ++i) {
+            try {
+                var value = config[names[i]]
+                if (value !== undefined && value !== null && String(value).length > 0)
+                    return String(value)
+            } catch (e) {}
+        }
+        return ""
+    }
+
+    function findProjectVectorLayerById(idValue) {
+        var wanted = String(idValue || "")
+        if (wanted.length === 0) return null
+        for (var i = 0; i < vectorLayers.length; ++i) {
+            if (layerId(vectorLayers[i]) === wanted)
+                return vectorLayers[i]
+        }
+        try {
+            var projectLayers = qgisProject.mapLayers()
+            if (projectLayers) {
+                for (var key in projectLayers) {
+                    if (layerId(projectLayers[key]) === wanted)
+                        return projectLayers[key]
+                }
+            }
+        } catch (e) {}
+        return null
+    }
+
+    function configureBatchRelationSource(columnIndex) {
+        batchRelationLayer = null
+        batchRelationLayerId = ""
+        batchRelationKeyField = ""
+        batchRelationValueField = ""
+        batchRelationFilterExpression = ""
+
+        var info = batchWidgetInfo(columnIndex)
+        var cfg = info.config || ({})
+        var type = String(info.type || "").toLowerCase()
+        if (type !== "valuerelation") return false
+
+        batchRelationLayerId = batchConfigString(cfg, ["Layer", "layer", "LayerId", "layerId"])
+        batchRelationKeyField = batchConfigString(cfg, ["Key", "key", "KeyField", "keyField"])
+        batchRelationValueField = batchConfigString(cfg, ["Value", "value", "ValueField", "valueField"])
+        batchRelationFilterExpression =
+                batchConfigString(cfg, ["FilterExpression", "filterExpression"])
+
+        batchRelationLayer = findProjectVectorLayerById(batchRelationLayerId)
+        return batchRelationLayer !== null &&
+               batchRelationKeyField.length > 0 &&
+               batchRelationValueField.length > 0
+    }
+
+    function registerBatchRelationOption(rawValue, displayValue) {
+        var raw = String(rawValue === undefined || rawValue === null ? "" : rawValue)
+        if (raw.length === 0) return
+
+        var label = String(displayValue === undefined || displayValue === null ? "" : displayValue)
+        if (label.length === 0) label = raw
+
+        var next = batchRelationItems.slice(0)
+        for (var i = 0; i < next.length; ++i) {
+            if (String(next[i].rawValue) === raw) return
+        }
+        next.push({"rawValue": raw, "label": label})
+        next.sort(function(a,b) { return String(a.label).localeCompare(String(b.label)) })
+        batchRelationItems = next
+    }
+
     function rebuildBatchRelationItems(columnIndex) {
+        batchRelationItems = []
+
+        // Premier choix : la vraie table ValueRelation. Le FeatureListModel
+        // ci-dessous énumère toutes les entités, y compris celles qui n'ont
+        // encore jamais été utilisées dans la couche principale.
+        if (configureBatchRelationSource(columnIndex)) {
+            batchRelationCollector.enabled = false
+            batchRelationModel.currentLayer = null
+            batchRelationModel.keyField = batchRelationKeyField
+            batchRelationModel.displayValueField = batchRelationValueField
+            batchRelationModel.filterExpression = batchRelationFilterExpression
+            batchRelationModel.currentLayer = batchRelationLayer
+            batchRelationCollector.enabled = true
+            return
+        }
+
+        // Fallback pour les widgets multiples non-ValueRelation :
+        // récupérer les clés déjà rencontrées.
         var seen = ({})
         var result = []
         for (var r = 0; r < flatRows.length; ++r) {
             var row = flatRows[r]
             var tokens = parseStoredCollection(rawAttributeForRow(row, columnIndex))
-            if (tokens.length === 1) {
-                var token = String(tokens[0])
-                if (!seen[token]) {
-                    seen[token] = true
-                    var display = String(rowValue(row, columnIndex) || token)
-                    result.push({"rawValue": token, "label": display.length > 0 ? display : token})
-                }
-            } else {
-                for (var t = 0; t < tokens.length; ++t) {
-                    var rawToken = String(tokens[t])
-                    if (!seen[rawToken]) {
-                        seen[rawToken] = true
-                        result.push({"rawValue": rawToken, "label": rawToken})
-                    }
+            for (var t = 0; t < tokens.length; ++t) {
+                var rawToken = String(tokens[t])
+                if (!seen[rawToken]) {
+                    seen[rawToken] = true
+                    result.push({"rawValue": rawToken, "label": rawToken})
                 }
             }
         }
         result.sort(function(a,b) { return String(a.label).localeCompare(String(b.label)) })
         batchRelationItems = result
+    }
+
+    function relationLabelForRaw(rawValue) {
+        var raw = String(rawValue === undefined || rawValue === null ? "" : rawValue)
+        for (var i = 0; i < batchRelationItems.length; ++i) {
+            if (String(batchRelationItems[i].rawValue) === raw)
+                return String(batchRelationItems[i].label)
+        }
+        return raw
+    }
+
+    function displayedCollectionFromRaw(rawValue) {
+        var tokens = parseStoredCollection(rawValue)
+        var labels = []
+        for (var i = 0; i < tokens.length; ++i)
+            labels.push(relationLabelForRaw(tokens[i]))
+        return labels.join("; ")
+    }
+
+    function journalTimestamp() {
+        return Qt.formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss")
+    }
+
+    function appendBatchJournal(row, oldRaw, newRaw, success, note) {
+        var next = batchJournal.slice(0)
+        var col = columns[batchFieldColumn]
+        var isMulti = fieldLooksMultiple(batchFieldColumn)
+        next.push({
+            "timestamp": journalTimestamp(),
+            "layer": layerName(selectedLayer),
+            "featureId": String(row.featureId),
+            "field": col ? String(col.fieldName || "") : "",
+            "fieldLabel": col ? String(col.alias || col.fieldName || "") : "",
+            "operation": String(batchOperation),
+            "oldRaw": String(oldRaw === undefined || oldRaw === null ? "" : oldRaw),
+            "newRaw": String(newRaw === undefined || newRaw === null ? "" : newRaw),
+            "oldDisplay": isMulti ? displayedCollectionFromRaw(oldRaw) :
+                          representedValue(row.feature, col.fieldName, oldRaw),
+            "newDisplay": isMulti ? displayedCollectionFromRaw(newRaw) :
+                          String(newRaw === undefined || newRaw === null ? "" : newRaw),
+            "success": success === true,
+            "note": String(note || "")
+        })
+        batchJournal = next
+    }
+
+    function batchJournalText() {
+        var lines = []
+        lines.push("Date/heure\tCouche\tEntité\tChamp\tOpération\tAvant (affiché)\tAprès (affiché)\tAvant (brut)\tAprès (brut)\tStatut\tNote")
+        for (var i = 0; i < batchJournal.length; ++i) {
+            var e = batchJournal[i]
+            function clean(v) { return String(v === undefined || v === null ? "" : v).replace(/\t/g, " ").replace(/\r?\n/g, " ") }
+            lines.push([
+                clean(e.timestamp), clean(e.layer), clean(e.featureId),
+                clean(e.fieldLabel), clean(e.operation),
+                clean(e.oldDisplay), clean(e.newDisplay),
+                clean(e.oldRaw), clean(e.newRaw),
+                e.success ? "OK" : "ÉCHEC", clean(e.note)
+            ].join("\t"))
+        }
+        return lines.join("\n")
+    }
+
+    function copyBatchJournal() {
+        var text = batchJournalText()
+        try {
+            if (Qt.application && Qt.application.clipboard) {
+                if (typeof Qt.application.clipboard.setText === "function")
+                    Qt.application.clipboard.setText(text)
+                else
+                    Qt.application.clipboard.text = text
+                return
+            }
+        } catch (e1) {}
+        try {
+            if (mainWindow && typeof mainWindow.copyToClipboard === "function")
+                mainWindow.copyToClipboard(text)
+        } catch (e2) {}
+    }
+
+    function openCreateRelationDialog() {
+        if (!batchRelationLayer || batchRelationKeyField.length === 0 ||
+                batchRelationValueField.length === 0) {
+            diagnosticMessage = qsTr("La table liée ou ses champs clé/libellé ne peuvent pas être déterminés.")
+            return
+        }
+        batchNewRelationKey = ""
+        batchNewRelationLabel = ""
+        createRelationDialog.open()
+    }
+
+    function createRelationEntry() {
+        var key = String(batchNewRelationKey || "").trim()
+        var label = String(batchNewRelationLabel || "").trim()
+        if (!batchRelationLayer || key.length === 0 || label.length === 0) return
+
+        try {
+            var f = FeatureUtils.createFeature(batchRelationLayer)
+            if (!f.setAttribute(batchRelationKeyField, key) ||
+                    !f.setAttribute(batchRelationValueField, label)) {
+                diagnosticMessage = qsTr("Impossible de préparer la nouvelle valeur relationnelle.")
+                return
+            }
+
+            relationCreateModel.currentLayer = batchRelationLayer
+            relationCreateModel.feature = f
+            relationCreateModel.updateAttributesFromFeature(f)
+
+            if (relationCreateModel.create(true)) {
+                createRelationDialog.close()
+                registerBatchRelationOption(key, label)
+                batchRelationRawValue = key
+                batchRelationCombo.currentIndex = batchRelationModel.findKey(key)
+                diagnosticMessage = ""
+            } else {
+                diagnosticMessage = qsTr("La nouvelle entrée n'a pas pu être créée. Vérifiez les contraintes de la table liée.")
+            }
+        } catch (e) {
+            diagnosticMessage = qsTr("Création de la valeur relationnelle impossible : %1").arg(e)
+        }
     }
 
     function openBatchEditDialog() {
@@ -1428,17 +1638,19 @@ Item {
 
         for (var i = 0; i < rows.length; ++i) {
             var row = rows[i]
+            var oldRawValue = rawAttributeForRow(row, batchFieldColumn)
             var newValue = batchNewRawValue(row)
+
             if (newValue === null || newValue === undefined) {
                 batchFailedIds.push(String(row.featureId))
+                appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Nouvelle valeur invalide"))
                 continue
             }
 
             try {
-                var oldRawValue = rawAttributeForRow(row, batchFieldColumn)
                 if (String(oldRawValue) === String(newValue)) {
-                    // Valeur déjà conforme : aucune écriture nécessaire.
                     batchSuccessCount++
+                    appendBatchJournal(row, oldRawValue, newValue, true, qsTr("Déjà conforme — aucune écriture"))
                     continue
                 }
 
@@ -1449,19 +1661,27 @@ Item {
                 var setOk = edited.setAttribute(fieldName, newValue)
                 if (!setOk) {
                     batchFailedIds.push(String(row.featureId))
+                    appendBatchJournal(row, oldRawValue, newValue, false, qsTr("setAttribute() refusé"))
                     continue
                 }
 
                 if (!batchSaveModel.updateAttributesFromFeature(edited)) {
                     batchFailedIds.push(String(row.featureId))
+                    appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Attribut non transféré au FeatureModel"))
                     continue
                 }
 
-                if (batchSaveModel.save(true)) batchSuccessCount++
-                else batchFailedIds.push(String(row.featureId))
+                if (batchSaveModel.save(true)) {
+                    batchSuccessCount++
+                    appendBatchJournal(row, oldRawValue, newValue, true, "")
+                } else {
+                    batchFailedIds.push(String(row.featureId))
+                    appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
+                }
             } catch (e) {
-                console.log("QField Table v0.8.1 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.2 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
+                appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
         }
 
@@ -1474,7 +1694,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.1 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.2 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -1800,7 +2020,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.1 zoom: " + zoomError)
+            console.log("QField Table v0.8.2 zoom: " + zoomError)
             return false
         }
     }
@@ -1890,7 +2110,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.1 chargé")
+        console.log("QField Table v0.8.2 chargé")
     }
 
     Connections {
@@ -1988,7 +2208,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.1")
+        title: qsTr("QField Table — v0.8.2")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -2051,6 +2271,11 @@ Item {
                     text: qsTr("Modifier en lot… (%1)").arg(plugin.batchSelectionCount())
                     enabled: plugin.batchSelectionCount() > 0
                     onClicked: plugin.openBatchEditDialog()
+                }
+                Button {
+                    text: qsTr("Journal (%1)").arg(plugin.batchJournal.length)
+                    enabled: plugin.batchJournal.length > 0
+                    onClicked: batchJournalDialog.open()
                 }
 
                 Layout.fillWidth: true
@@ -2124,6 +2349,44 @@ Item {
                 }
 
 
+
+                FeatureModel {
+                    id: relationCreateModel
+                    project: qgisProject
+                    currentLayer: plugin.batchRelationLayer
+                    modelMode: FeatureModel.SingleFeatureModel
+                }
+
+                FeatureListModel {
+                    id: batchRelationModel
+                    currentLayer: plugin.batchRelationLayer
+                    keyField: plugin.batchRelationKeyField
+                    displayValueField: plugin.batchRelationValueField
+                    filterExpression: plugin.batchRelationFilterExpression
+                    orderByValue: true
+                    addNull: false
+                }
+
+                Item {
+                    id: batchRelationCollector
+                    property bool enabled: true
+                    width: 1
+                    height: 1
+                    visible: false
+
+                    Repeater {
+                        model: batchRelationCollector.enabled ? batchRelationModel : null
+                        delegate: Item {
+                            width: 1
+                            height: 1
+                            Component.onCompleted: {
+                                var raw = model.KeyField !== undefined ? model.KeyField : ""
+                                var label = model.DisplayString !== undefined ? model.DisplayString : raw
+                                plugin.registerBatchRelationOption(raw, label)
+                            }
+                        }
+                    }
+                }
 
                 FeatureModel {
                     id: referenceFeatureModel
@@ -2458,7 +2721,7 @@ Item {
                 }
             }
 
-            // v0.8.1 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.2 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -2888,6 +3151,159 @@ Item {
     }
 
     QfDialog {
+        id: createRelationDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Créer une valeur relationnelle")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(520, parent.width * 0.38) : 600
+        height: 360
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                text: plugin.batchRelationLayer
+                      ? qsTr("Table : %1").arg(plugin.layerName(plugin.batchRelationLayer))
+                      : ""
+                font.bold: true
+            }
+
+            Label { text: qsTr("Clé à enregistrer (%1)").arg(plugin.batchRelationKeyField) }
+            TextField {
+                Layout.fillWidth: true
+                placeholderText: qsTr("Nouvelle clé unique")
+                text: plugin.batchNewRelationKey
+                onTextChanged: plugin.batchNewRelationKey = text
+            }
+
+            Label { text: qsTr("Titre / libellé (%1)").arg(plugin.batchRelationValueField) }
+            TextField {
+                Layout.fillWidth: true
+                placeholderText: qsTr("Titre visible dans QField Table")
+                text: plugin.batchNewRelationLabel
+                onTextChanged: plugin.batchNewRelationLabel = text
+            }
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.7
+                text: qsTr("Les valeurs par défaut de la table liée seront appliquées. Si cette table possède d'autres champs obligatoires, la création sera refusée plutôt que d'insérer une entrée incomplète.")
+            }
+
+            Item { Layout.fillHeight: true }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: qsTr("Annuler"); onClicked: createRelationDialog.close() }
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("Créer")
+                    enabled: plugin.batchNewRelationKey.trim().length > 0 &&
+                             plugin.batchNewRelationLabel.trim().length > 0
+                    onClicked: plugin.createRelationEntry()
+                }
+            }
+        }
+    }
+
+    QfDialog {
+        id: batchJournalDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Journal des modifications en lot")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(900, parent.width * 0.78) : 1000
+        height: parent ? Math.max(560, parent.height * 0.72) : 650
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 8
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("%1 entrée(s) dans le journal de cette session").arg(plugin.batchJournal.length)
+                font.bold: true
+                font.pixelSize: 17
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                ListView {
+                    model: plugin.batchJournal
+                    spacing: 5
+
+                    delegate: Rectangle {
+                        width: ListView.view.width
+                        height: journalColumn.implicitHeight + 16
+                        border.width: 1
+                        border.color: Theme.lightGray
+                        color: "transparent"
+
+                        Column {
+                            id: journalColumn
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 8
+                            spacing: 3
+
+                            Label {
+                                width: parent.width
+                                font.bold: true
+                                text: modelData.timestamp + " — " + modelData.featureId +
+                                      " — " + modelData.fieldLabel +
+                                      " — " + (modelData.success ? qsTr("OK") : qsTr("ÉCHEC"))
+                            }
+                            Label {
+                                width: parent.width
+                                wrapMode: Text.Wrap
+                                text: qsTr("Avant : %1").arg(modelData.oldDisplay)
+                            }
+                            Label {
+                                width: parent.width
+                                wrapMode: Text.Wrap
+                                text: qsTr("Après : %1").arg(modelData.newDisplay)
+                            }
+                            Label {
+                                width: parent.width
+                                wrapMode: Text.Wrap
+                                opacity: 0.65
+                                text: qsTr("Brut : %1  →  %2").arg(modelData.oldRaw).arg(modelData.newRaw)
+                            }
+                            Label {
+                                width: parent.width
+                                visible: String(modelData.note || "").length > 0
+                                wrapMode: Text.Wrap
+                                text: modelData.note
+                            }
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Button {
+                    text: qsTr("Copier le journal")
+                    enabled: plugin.batchJournal.length > 0
+                    onClicked: plugin.copyBatchJournal()
+                }
+                Item { Layout.fillWidth: true }
+                Button { text: qsTr("Fermer"); onClicked: batchJournalDialog.close() }
+            }
+        }
+    }
+
+    QfDialog {
         id: batchEditDialog
         parent: mainWindow.contentItem
         modal: true
@@ -2959,18 +3375,30 @@ Item {
                       : qsTr("Nouvelle valeur")
             }
 
-            ComboBox {
-                id: batchRelationCombo
+            RowLayout {
                 Layout.fillWidth: true
                 visible: plugin.batchFieldColumn >= 0 &&
-                         plugin.fieldLooksMultiple(plugin.batchFieldColumn) &&
-                         plugin.batchRelationItems.length > 0
-                model: plugin.batchRelationItems
-                textRole: "label"
-                onActivated: {
-                    if (currentIndex >= 0 && currentIndex < plugin.batchRelationItems.length)
-                        plugin.batchRelationRawValue =
-                            String(plugin.batchRelationItems[currentIndex].rawValue)
+                         plugin.fieldLooksMultiple(plugin.batchFieldColumn)
+
+                ComboBox {
+                    id: batchRelationCombo
+                    Layout.fillWidth: true
+                    model: plugin.batchRelationItems
+                    textRole: "label"
+                    displayText: currentIndex >= 0 && currentIndex < plugin.batchRelationItems.length
+                                 ? plugin.batchRelationItems[currentIndex].label
+                                 : qsTr("Choisir une valeur relationnelle…")
+                    onActivated: {
+                        if (currentIndex >= 0 && currentIndex < plugin.batchRelationItems.length)
+                            plugin.batchRelationRawValue =
+                                String(plugin.batchRelationItems[currentIndex].rawValue)
+                    }
+                }
+
+                Button {
+                    text: qsTr("Nouvelle valeur…")
+                    visible: plugin.batchRelationLayer !== null
+                    onClicked: plugin.openCreateRelationDialog()
                 }
             }
 
@@ -3128,6 +3556,11 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("Voir le journal")
+                    enabled: plugin.batchJournal.length > 0
+                    onClicked: batchJournalDialog.open()
+                }
                 Button {
                     text: qsTr("Fermer")
                     onClicked: {

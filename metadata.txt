@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.1
-description=QField Table avec modification en lot sur colonnes visibles et meilleure détection des champs relationnels multiples.
+version=0.8.2
+description=QField Table avec édition en lot, valeurs relationnelles complètes, création de valeurs et journal avant/après.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
