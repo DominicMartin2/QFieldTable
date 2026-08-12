@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.8
-description=QField Table v0.8.8 : résolution robuste des couches ValueRelation par Layer, LayerName et LayerSource.
+version=0.8.9
+description=QField Table v0.8.9 : résolution des couches relationnelles via ProjectUtils.mapLayers(), API QML-compatible de QField.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.8 — sélection et modification en lot.
+    // v0.8.9 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.8 — source ValueRelation complète.
+    // v0.8.9 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -62,7 +62,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.8 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.9 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -159,12 +159,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.8 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.9 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.8 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.9 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -249,7 +249,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.8 iterator: " + error)
+            console.log("QField Table v0.8.9 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -292,7 +292,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.8 filtered iterator: " + error)
+            console.log("QField Table v0.8.9 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -414,7 +414,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.8 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.9 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -473,7 +473,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.8 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.9 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -530,7 +530,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.8 configuration invalide: " + e)
+            console.log("QField Table v0.8.9 configuration invalide: " + e)
             return ({})
         }
     }
@@ -554,7 +554,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.8 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.9 lecture propriété couche: " + e)
         }
         return null
     }
@@ -586,7 +586,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.8 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.9 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1497,7 +1497,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.8.8 — diagnostic projet")
+        lines.push("QField Table v0.8.9 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -1928,23 +1928,33 @@ Item {
 
         function addLayer(layer) {
             if (!layer) return
+
             var id = layerId(layer)
-            var key = id.length > 0 ? id : layerName(layer) + "|" + layerSourceText(layer)
+            var name = layerName(layer)
+            var source = layerSourceText(layer)
+            var key = id.length > 0 ? id : name + "|" + source
+
             if (seen[key]) return
             seen[key] = true
             result.push(layer)
         }
 
-        for (var i = 0; i < vectorLayers.length; ++i)
-            addLayer(vectorLayers[i])
-
+        // Source principale : API officielle QField prévue pour QML.
+        // ProjectUtils.mapLayers() retourne une QVariantMap QML-compatible
+        // de toutes les couches enregistrées par ID.
         try {
-            var projectLayers = qgisProject.mapLayers()
+            var projectLayers = ProjectUtils.mapLayers(qgisProject)
             if (projectLayers) {
                 for (var key in projectLayers)
                     addLayer(projectLayers[key])
             }
-        } catch (e) {}
+        } catch (e1) {
+            console.log("QField Table v0.8.9 ProjectUtils.mapLayers: " + e1)
+        }
+
+        // Complément : garder les couches déjà exposées par le plugin.
+        for (var i = 0; i < vectorLayers.length; ++i)
+            addLayer(vectorLayers[i])
 
         return result
     }
@@ -1959,17 +1969,35 @@ Item {
         var wantedId = String(layerIdValue || "")
         var wantedName = String(layerNameValue || "")
         var wantedSource = normalizeLayerSource(layerSourceValue)
+
+        // 0. Direct QVariantMap lookup through QField's QML-compatible helper.
+        if (wantedId.length > 0) {
+            try {
+                var directLayers = ProjectUtils.mapLayers(qgisProject)
+                if (directLayers && directLayers[wantedId])
+                    return {
+                        "layer": directLayers[wantedId],
+                        "method": "ProjectUtils.mapLayers — Layer ID"
+                    }
+            } catch (e0) {
+                console.log("QField Table v0.8.9 direct layer lookup: " + e0)
+            }
+        }
+
         var layers = allProjectVectorLayers()
 
         // 1. Exact layer ID.
         if (wantedId.length > 0) {
             for (var i = 0; i < layers.length; ++i) {
                 if (layerId(layers[i]) === wantedId)
-                    return { "layer": layers[i], "method": "Layer ID" }
+                    return {
+                        "layer": layers[i],
+                        "method": "ProjectUtils — Layer ID"
+                    }
             }
         }
 
-        // 2. Exact layer name.
+        // 2. Exact LayerName.
         if (wantedName.length > 0) {
             var nameMatches = []
             for (var j = 0; j < layers.length; ++j) {
@@ -1978,13 +2006,18 @@ Item {
             }
 
             if (nameMatches.length === 1)
-                return { "layer": nameMatches[0], "method": "LayerName" }
+                return {
+                    "layer": nameMatches[0],
+                    "method": "ProjectUtils — LayerName"
+                }
 
-            // If several layers share the same name, use source as tie-breaker.
             if (nameMatches.length > 1 && wantedSource.length > 0) {
                 for (var k = 0; k < nameMatches.length; ++k) {
                     if (layerMatchesSource(nameMatches[k], wantedSource))
-                        return { "layer": nameMatches[k], "method": "LayerName + LayerSource" }
+                        return {
+                            "layer": nameMatches[k],
+                            "method": "ProjectUtils — LayerName + LayerSource"
+                        }
                 }
             }
         }
@@ -1993,15 +2026,21 @@ Item {
         if (wantedSource.length > 0) {
             for (var s = 0; s < layers.length; ++s) {
                 if (layerMatchesSource(layers[s], wantedSource))
-                    return { "layer": layers[s], "method": "LayerSource" }
+                    return {
+                        "layer": layers[s],
+                        "method": "ProjectUtils — LayerSource"
+                    }
             }
         }
 
-        // 4. Some project serializers put the visible name in Layer.
+        // 4. Tolerate a visible name serialized in the Layer option.
         if (wantedId.length > 0) {
             for (var n = 0; n < layers.length; ++n) {
                 if (layerName(layers[n]) === wantedId)
-                    return { "layer": layers[n], "method": "Layer as name" }
+                    return {
+                        "layer": layers[n],
+                        "method": "ProjectUtils — Layer as name"
+                    }
             }
         }
 
@@ -2071,11 +2110,11 @@ Item {
         } else {
             var loadedNames = []
             var layers = allProjectVectorLayers()
-            for (var i = 0; i < Math.min(layers.length, 30); ++i)
-                loadedNames.push(layerName(layers[i]))
+            for (var i = 0; i < Math.min(layers.length, 40); ++i)
+                loadedNames.push(layerName(layers[i]) + " [" + layerId(layers[i]) + "]")
 
             batchRelationDiagnostic =
-                qsTr("ValueRelation lue, mais couche non résolue. Layer=%1 ; LayerName=%2 ; LayerSource=%3 ; clé=%4 ; titre=%5. Couches chargées : %6")
+                qsTr("ValueRelation lue, mais couche non résolue via ProjectUtils. Layer=%1 ; LayerName=%2 ; LayerSource=%3 ; clé=%4 ; titre=%5. Couches du projet visibles en QML : %6")
                 .arg(batchRelationLayerId)
                 .arg(batchRelationLayerName)
                 .arg(sourceTail(batchRelationLayerSource))
@@ -2381,7 +2420,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.8 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.9 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -2396,7 +2435,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.8 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.9 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2722,7 +2761,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.8 zoom: " + zoomError)
+            console.log("QField Table v0.8.9 zoom: " + zoomError)
             return false
         }
     }
@@ -2812,7 +2851,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.8 chargé")
+        console.log("QField Table v0.8.9 chargé")
     }
 
     Connections {
@@ -2910,7 +2949,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.8")
+        title: qsTr("QField Table — v0.8.9")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -3469,7 +3508,7 @@ Item {
                 }
             }
 
-            // v0.8.8 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.9 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
