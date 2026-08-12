@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.7 — sélection et modification en lot.
+    // v0.8.8 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.7 — source ValueRelation complète.
+    // v0.8.8 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -52,6 +52,9 @@ Item {
     // Configuration de formulaire réellement utilisée par QField.
     property var projectWidgetConfigs: ({})
     property string batchRelationDiagnostic: ""
+    property string batchRelationLayerSource: ""
+    property string batchRelationLayerName: ""
+    property string batchRelationResolutionMethod: ""
     property string projectConfigDiagnostic: ""
     property bool projectConfigReadAttempted: false
     property string projectXmlDiagnosticText: ""
@@ -59,7 +62,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.7 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.8 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -156,12 +159,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.7 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.8 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.7 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.8 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -246,7 +249,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.7 iterator: " + error)
+            console.log("QField Table v0.8.8 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -289,7 +292,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.7 filtered iterator: " + error)
+            console.log("QField Table v0.8.8 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -411,7 +414,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.7 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.8 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -470,7 +473,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.7 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.8 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -527,7 +530,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.7 configuration invalide: " + e)
+            console.log("QField Table v0.8.8 configuration invalide: " + e)
             return ({})
         }
     }
@@ -551,7 +554,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.7 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.8 lecture propriété couche: " + e)
         }
         return null
     }
@@ -583,7 +586,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.7 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.8 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1333,6 +1336,7 @@ Item {
         return ({
             "Layer": optionValueFromConfig(cfgText, "Layer"),
             "LayerName": optionValueFromConfig(cfgText, "LayerName"),
+            "LayerSource": optionValueFromConfig(cfgText, "LayerSource"),
             "Key": optionValueFromConfig(cfgText, "Key"),
             "Value": optionValueFromConfig(cfgText, "Value"),
             "AllowMulti": optionValueFromConfig(cfgText, "AllowMulti"),
@@ -1493,7 +1497,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.8.7 — diagnostic projet")
+        lines.push("QField Table v0.8.8 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -1833,39 +1837,183 @@ Item {
         return ""
     }
 
-    function findProjectVectorLayerById(idValue) {
-        var wanted = String(idValue || "")
-        if (wanted.length === 0) return null
+    function normalizeLayerSource(value) {
+        var s = String(value === undefined || value === null ? "" : value).trim()
+        if (s.length === 0) return ""
 
-        for (var i = 0; i < vectorLayers.length; ++i) {
-            var candidate = vectorLayers[i]
-            if (layerId(candidate) === wanted)
-                return candidate
+        // QGIS may serialize absolute paths in the project while QField loads
+        // the packaged copy using another base directory. Compare the provider
+        // suffix and filename/layername conservatively.
+        s = s.replace(/\\/g, "/")
+        return s
+    }
+
+    function layerSourceText(layer) {
+        if (!layer) return ""
+
+        var candidates = []
+
+        try {
+            if (typeof layer.source === "function")
+                candidates.push(String(layer.source() || ""))
+            else if (layer.source !== undefined)
+                candidates.push(String(layer.source || ""))
+        } catch (e1) {}
+
+        try {
+            if (typeof layer.dataSource === "function")
+                candidates.push(String(layer.dataSource() || ""))
+            else if (layer.dataSource !== undefined)
+                candidates.push(String(layer.dataSource || ""))
+        } catch (e2) {}
+
+        try {
+            if (layer.provider && typeof layer.provider.dataSourceUri === "function")
+                candidates.push(String(layer.provider.dataSourceUri() || ""))
+        } catch (e3) {}
+
+        for (var i = 0; i < candidates.length; ++i)
+            if (candidates[i].length > 0)
+                return normalizeLayerSource(candidates[i])
+
+        return ""
+    }
+
+    function sourceTail(value) {
+        var s = normalizeLayerSource(value)
+        if (s.length === 0) return ""
+
+        // Preserve the provider suffix, especially |layername=...
+        var pipe = s.indexOf("|")
+        var providerSuffix = pipe >= 0 ? s.substring(pipe) : ""
+        var pathPart = pipe >= 0 ? s.substring(0, pipe) : s
+        var slash = pathPart.lastIndexOf("/")
+        var fileName = slash >= 0 ? pathPart.substring(slash + 1) : pathPart
+
+        return fileName + providerSuffix
+    }
+
+    function layerMatchesSource(layer, wantedSource) {
+        var wanted = normalizeLayerSource(wantedSource)
+        if (wanted.length === 0 || !layer) return false
+
+        var actual = layerSourceText(layer)
+        if (actual.length === 0) return false
+
+        if (actual === wanted) return true
+
+        // Packaged QField projects usually change only the directory path.
+        var wantedTail = sourceTail(wanted)
+        var actualTail = sourceTail(actual)
+        if (wantedTail.length > 0 && actualTail.length > 0 &&
+                wantedTail === actualTail)
+            return true
+
+        // Last-resort comparison on layername suffix.
+        var wantedLayername = ""
+        var actualLayername = ""
+        var wm = /\|layername=([^|]+)/i.exec(wanted)
+        var am = /\|layername=([^|]+)/i.exec(actual)
+        if (wm) wantedLayername = String(wm[1])
+        if (am) actualLayername = String(am[1])
+
+        return wantedLayername.length > 0 &&
+               actualLayername.length > 0 &&
+               wantedLayername === actualLayername
+    }
+
+    function allProjectVectorLayers() {
+        var result = []
+        var seen = ({})
+
+        function addLayer(layer) {
+            if (!layer) return
+            var id = layerId(layer)
+            var key = id.length > 0 ? id : layerName(layer) + "|" + layerSourceText(layer)
+            if (seen[key]) return
+            seen[key] = true
+            result.push(layer)
         }
 
-        for (var j = 0; j < vectorLayers.length; ++j) {
-            var named = vectorLayers[j]
-            if (layerName(named) === wanted)
-                return named
-        }
+        for (var i = 0; i < vectorLayers.length; ++i)
+            addLayer(vectorLayers[i])
 
         try {
             var projectLayers = qgisProject.mapLayers()
             if (projectLayers) {
-                for (var key in projectLayers) {
-                    var p = projectLayers[key]
-                    if (layerId(p) === wanted || layerName(p) === wanted)
-                        return p
-                }
+                for (var key in projectLayers)
+                    addLayer(projectLayers[key])
             }
         } catch (e) {}
 
-        return null
+        return result
+    }
+
+    function findProjectVectorLayerById(idValue) {
+        // Compatibility wrapper kept for older calls.
+        var resolved = resolveProjectVectorLayer(idValue, "", "")
+        return resolved.layer
+    }
+
+    function resolveProjectVectorLayer(layerIdValue, layerNameValue, layerSourceValue) {
+        var wantedId = String(layerIdValue || "")
+        var wantedName = String(layerNameValue || "")
+        var wantedSource = normalizeLayerSource(layerSourceValue)
+        var layers = allProjectVectorLayers()
+
+        // 1. Exact layer ID.
+        if (wantedId.length > 0) {
+            for (var i = 0; i < layers.length; ++i) {
+                if (layerId(layers[i]) === wantedId)
+                    return { "layer": layers[i], "method": "Layer ID" }
+            }
+        }
+
+        // 2. Exact layer name.
+        if (wantedName.length > 0) {
+            var nameMatches = []
+            for (var j = 0; j < layers.length; ++j) {
+                if (layerName(layers[j]) === wantedName)
+                    nameMatches.push(layers[j])
+            }
+
+            if (nameMatches.length === 1)
+                return { "layer": nameMatches[0], "method": "LayerName" }
+
+            // If several layers share the same name, use source as tie-breaker.
+            if (nameMatches.length > 1 && wantedSource.length > 0) {
+                for (var k = 0; k < nameMatches.length; ++k) {
+                    if (layerMatchesSource(nameMatches[k], wantedSource))
+                        return { "layer": nameMatches[k], "method": "LayerName + LayerSource" }
+                }
+            }
+        }
+
+        // 3. Data source URI.
+        if (wantedSource.length > 0) {
+            for (var s = 0; s < layers.length; ++s) {
+                if (layerMatchesSource(layers[s], wantedSource))
+                    return { "layer": layers[s], "method": "LayerSource" }
+            }
+        }
+
+        // 4. Some project serializers put the visible name in Layer.
+        if (wantedId.length > 0) {
+            for (var n = 0; n < layers.length; ++n) {
+                if (layerName(layers[n]) === wantedId)
+                    return { "layer": layers[n], "method": "Layer as name" }
+            }
+        }
+
+        return { "layer": null, "method": "" }
     }
 
     function configureBatchRelationSource(columnIndex) {
         batchRelationLayer = null
         batchRelationLayerId = ""
+        batchRelationLayerName = ""
+        batchRelationLayerSource = ""
+        batchRelationResolutionMethod = ""
         batchRelationKeyField = ""
         batchRelationValueField = ""
         batchRelationFilterExpression = ""
@@ -1886,8 +2034,10 @@ Item {
 
         batchRelationLayerId =
             batchConfigString(cfg, ["Layer", "layer", "LayerId", "layerId"])
-        var relationLayerName =
+        batchRelationLayerName =
             batchConfigString(cfg, ["LayerName", "layerName"])
+        batchRelationLayerSource =
+            batchConfigString(cfg, ["LayerSource", "layerSource", "Source", "source"])
         batchRelationKeyField =
             batchConfigString(cfg, ["Key", "key", "KeyField", "keyField"])
         batchRelationValueField =
@@ -1895,9 +2045,14 @@ Item {
         batchRelationFilterExpression =
             batchConfigString(cfg, ["FilterExpression", "filterExpression", "Filter", "filter"])
 
-        batchRelationLayer = findProjectVectorLayerById(batchRelationLayerId)
-        if (batchRelationLayer === null && relationLayerName.length > 0)
-            batchRelationLayer = findProjectVectorLayerById(relationLayerName)
+        var resolved = resolveProjectVectorLayer(
+            batchRelationLayerId,
+            batchRelationLayerName,
+            batchRelationLayerSource
+        )
+
+        batchRelationLayer = resolved.layer
+        batchRelationResolutionMethod = resolved.method
 
         var valid = batchRelationLayer !== null &&
                     batchRelationKeyField.length > 0 &&
@@ -1905,20 +2060,28 @@ Item {
 
         if (valid) {
             batchRelationDiagnostic =
-                qsTr("ValueRelation lue dans le projet : %1 → clé %2 → titre %3%4")
+                qsTr("ValueRelation : %1 → clé %2 → titre %3 — couche résolue par %4%5")
                 .arg(layerName(batchRelationLayer))
                 .arg(batchRelationKeyField)
                 .arg(batchRelationValueField)
+                .arg(batchRelationResolutionMethod)
                 .arg(batchRelationFilterExpression.length > 0
                      ? qsTr(" — filtre : %1").arg(batchRelationFilterExpression)
                      : "")
         } else {
+            var loadedNames = []
+            var layers = allProjectVectorLayers()
+            for (var i = 0; i < Math.min(layers.length, 30); ++i)
+                loadedNames.push(layerName(layers[i]))
+
             batchRelationDiagnostic =
-                qsTr("ValueRelation trouvée, mais configuration incomplète : couche=%1, clé=%2, titre=%3 — source XML : %4")
+                qsTr("ValueRelation lue, mais couche non résolue. Layer=%1 ; LayerName=%2 ; LayerSource=%3 ; clé=%4 ; titre=%5. Couches chargées : %6")
                 .arg(batchRelationLayerId)
+                .arg(batchRelationLayerName)
+                .arg(sourceTail(batchRelationLayerSource))
                 .arg(batchRelationKeyField)
                 .arg(batchRelationValueField)
-                .arg(projectConfigDiagnostic)
+                .arg(loadedNames.join(", "))
         }
 
         return valid
@@ -2218,7 +2381,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.7 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.8 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -2233,7 +2396,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.7 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.8 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2559,7 +2722,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.7 zoom: " + zoomError)
+            console.log("QField Table v0.8.8 zoom: " + zoomError)
             return false
         }
     }
@@ -2649,7 +2812,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.7 chargé")
+        console.log("QField Table v0.8.8 chargé")
     }
 
     Connections {
@@ -2747,7 +2910,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.7")
+        title: qsTr("QField Table — v0.8.8")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -3306,7 +3469,7 @@ Item {
                 }
             }
 
-            // v0.8.7 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.8 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {

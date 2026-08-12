@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.7
-description=QField Table v0.8.7 : correctif du parseur XML des ValueRelation dans les projets .qgs/.qgz.
+version=0.8.8
+description=QField Table v0.8.8 : résolution robuste des couches ValueRelation par Layer, LayerName et LayerSource.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
