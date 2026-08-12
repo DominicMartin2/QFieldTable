@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.5 — sélection et modification en lot.
+    // v0.8.6 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.5 — source ValueRelation complète.
+    // v0.8.6 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -54,10 +54,12 @@ Item {
     property string batchRelationDiagnostic: ""
     property string projectConfigDiagnostic: ""
     property bool projectConfigReadAttempted: false
+    property string projectXmlDiagnosticText: ""
+    property string projectXmlSourceName: ""
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.5 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.6 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -154,12 +156,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.5 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.6 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.5 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.6 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -182,6 +184,8 @@ Item {
         clearProjectWidgetConfigs()
         projectConfigReadAttempted = false
         projectConfigDiagnostic = ""
+        projectXmlDiagnosticText = ""
+        projectXmlSourceName = ""
         previewFeatures = []
         totalFeatureCount = 0
         matchedFeatureCount = 0
@@ -242,7 +246,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.5 iterator: " + error)
+            console.log("QField Table v0.8.6 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -285,7 +289,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.5 filtered iterator: " + error)
+            console.log("QField Table v0.8.6 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -407,7 +411,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.5 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.6 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -466,7 +470,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.5 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.6 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -523,7 +527,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.5 configuration invalide: " + e)
+            console.log("QField Table v0.8.6 configuration invalide: " + e)
             return ({})
         }
     }
@@ -547,7 +551,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.5 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.6 lecture propriété couche: " + e)
         }
         return null
     }
@@ -579,7 +583,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.5 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.6 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1286,46 +1290,311 @@ Item {
         return ""
     }
 
+    function countOccurrences(text, needle) {
+        var source = String(text || "")
+        var wanted = String(needle || "")
+        if (wanted.length === 0) return 0
+
+        var count = 0
+        var pos = 0
+        var lowerSource = source.toLowerCase()
+        var lowerWanted = wanted.toLowerCase()
+
+        while ((pos = lowerSource.indexOf(lowerWanted, pos)) >= 0) {
+            count++
+            pos += lowerWanted.length
+        }
+        return count
+    }
+
+    function plainXmlContext(text, center, radius) {
+        var source = String(text || "")
+        var start = Math.max(0, Number(center) - (radius || 600))
+        var end = Math.min(source.length, Number(center) + (radius || 600))
+        var excerpt = source.substring(start, end)
+
+        return excerpt.replace(/\r?\n/g, " ")
+                      .replace(/\s+/g, " ")
+                      .replace(/>\s+</g, "><")
+    }
+
+    function extractValueRelationConfig(editTagAttributes, editBody) {
+        var cfgText = String(editBody || "")
+        return ({
+            "Layer": optionValueFromConfig(cfgText, "Layer"),
+            "LayerName": optionValueFromConfig(cfgText, "LayerName"),
+            "Key": optionValueFromConfig(cfgText, "Key"),
+            "Value": optionValueFromConfig(cfgText, "Value"),
+            "AllowMulti": optionValueFromConfig(cfgText, "AllowMulti"),
+            "FilterExpression": optionValueFromConfig(cfgText, "FilterExpression"),
+            "OrderByValue": optionValueFromConfig(cfgText, "OrderByValue"),
+            "AllowNull": optionValueFromConfig(cfgText, "AllowNull")
+        })
+    }
+
+    function registerValueRelationFromXml(fieldName, config, sourceLabel) {
+        var fieldIndex = projectFieldIndexByName(fieldName)
+        if (fieldIndex < 0) return false
+
+        registerProjectWidgetConfig(
+            fieldIndex,
+            fieldName,
+            "ValueRelation",
+            config
+        )
+        return true
+    }
+
+    function parseValueRelationsStandard(xmlText) {
+        var source = String(xmlText || "")
+        var registered = 0
+        var fieldRe =
+            /<field\b([^>]*)\bname=["']([^"']+)["']([^>]*)>([\s\S]*?)<\/field>/gi
+        var match
+
+        while ((match = fieldRe.exec(source)) !== null) {
+            var fieldName = xmlDecode(match[2])
+            var body = match[4]
+            var edit =
+                /<editWidget\b([^>]*)\btype=["']ValueRelation["']([^>]*)>([\s\S]*?)<\/editWidget>/i.exec(body)
+
+            if (!edit) {
+                // Some serializers can place type before/after other attributes.
+                edit = /<editWidget\b([^>]*)>([\s\S]*?)<\/editWidget>/i.exec(body)
+                if (!edit) continue
+
+                var completeTag = "<editWidget " + edit[1] + ">"
+                if (String(xmlAttribute(completeTag, "type")).toLowerCase() !== "valuerelation")
+                    continue
+
+                if (registerValueRelationFromXml(
+                        fieldName,
+                        extractValueRelationConfig(edit[1], edit[2]),
+                        "standard")) {
+                    registered++
+                }
+                continue
+            }
+
+            if (registerValueRelationFromXml(
+                    fieldName,
+                    extractValueRelationConfig(edit[1] + " " + edit[2], edit[3]),
+                    "standard")) {
+                registered++
+            }
+        }
+
+        return registered
+    }
+
+    function parseValueRelationsByFieldNames(xmlText) {
+        var source = String(xmlText || "")
+        var lower = source.toLowerCase()
+        var registered = 0
+
+        // Use the actual fields of the selected layer as anchors.
+        for (var c = 0; c < columns.length; ++c) {
+            var fieldName = String(columns[c].fieldName || "")
+            if (fieldName.length === 0) continue
+
+            var escaped = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+            var fieldStartRe =
+                new RegExp("<field\\\\b[^>]*\\\\bname=[\\\"']" + escaped + "[\\\"'][^>]*>", "i")
+            var fm = fieldStartRe.exec(source)
+            if (!fm) continue
+
+            var fieldStart = fm.index
+            var fieldEnd = lower.indexOf("</field>", fieldStart)
+            if (fieldEnd < 0) fieldEnd = Math.min(source.length, fieldStart + 30000)
+
+            var segment = source.substring(fieldStart, fieldEnd + 8)
+            if (segment.toLowerCase().indexOf("valuerelation") < 0)
+                continue
+
+            var edit = /<editWidget\b([^>]*)>([\s\S]*?)<\/editWidget>/i.exec(segment)
+            if (!edit) continue
+
+            var tag = "<editWidget " + edit[1] + ">"
+            if (String(xmlAttribute(tag, "type")).toLowerCase() !== "valuerelation")
+                continue
+
+            if (registerValueRelationFromXml(
+                    fieldName,
+                    extractValueRelationConfig(edit[1], edit[2]),
+                    "field-name")) {
+                registered++
+            }
+        }
+
+        return registered
+    }
+
+    function parseValueRelationsGlobal(xmlText) {
+        var source = String(xmlText || "")
+        var lower = source.toLowerCase()
+        var registered = 0
+        var editRe = /<editWidget\b([^>]*)>([\s\S]*?)<\/editWidget>/gi
+        var edit
+
+        while ((edit = editRe.exec(source)) !== null) {
+            var tag = "<editWidget " + edit[1] + ">"
+            if (String(xmlAttribute(tag, "type")).toLowerCase() !== "valuerelation")
+                continue
+
+            var editStart = edit.index
+            var lastFieldOpen = lower.lastIndexOf("<field", editStart)
+            var lastFieldClose = lower.lastIndexOf("</field>", editStart)
+
+            var fieldName = ""
+            if (lastFieldOpen >= 0 && lastFieldOpen > lastFieldClose) {
+                var fieldTagEnd = source.indexOf(">", lastFieldOpen)
+                if (fieldTagEnd > lastFieldOpen) {
+                    var fieldTag = source.substring(lastFieldOpen, fieldTagEnd + 1)
+                    fieldName = xmlAttribute(fieldTag, "name")
+                }
+            }
+
+            // If not nested in <field>, search backwards for a field name
+            // within a conservative local window.
+            if (fieldName.length === 0) {
+                var contextStart = Math.max(0, editStart - 5000)
+                var before = source.substring(contextStart, editStart)
+                var re = /<field\b[^>]*\bname=["']([^"']+)["'][^>]*>/gi
+                var m, lastName = ""
+                while ((m = re.exec(before)) !== null)
+                    lastName = xmlDecode(m[1])
+                fieldName = lastName
+            }
+
+            if (fieldName.length > 0 &&
+                registerValueRelationFromXml(
+                    fieldName,
+                    extractValueRelationConfig(edit[1], edit[2]),
+                    "global")) {
+                registered++
+            }
+        }
+
+        return registered
+    }
+
+    function buildProjectXmlDiagnostic(content, sourceDescription, registeredCount) {
+        var source = String(content || "")
+        var lower = source.toLowerCase()
+
+        var lines = []
+        lines.push("QField Table v0.8.6 — diagnostic projet")
+        lines.push("Source : " + sourceDescription)
+        lines.push("Taille XML : " + source.length + " caractères")
+        lines.push("")
+        lines.push("Occurrences :")
+        lines.push("  ValueRelation : " + countOccurrences(source, "ValueRelation"))
+        lines.push("  <editWidget : " + countOccurrences(source, "<editWidget"))
+        lines.push("  <fieldConfiguration : " + countOccurrences(source, "<fieldConfiguration"))
+        lines.push("  AllowMulti : " + countOccurrences(source, "AllowMulti"))
+        lines.push("  FilterExpression : " + countOccurrences(source, "FilterExpression"))
+        lines.push("  Relations enregistrées par le plugin : " + registeredCount)
+        lines.push("")
+
+        var types = ({})
+        var editRe = /<editWidget\b([^>]*)>/gi
+        var edit
+        while ((edit = editRe.exec(source)) !== null) {
+            var type = xmlAttribute(edit[0], "type")
+            if (type.length === 0) type = "(sans type)"
+            types[type] = (types[type] || 0) + 1
+        }
+
+        lines.push("Types de widgets trouvés :")
+        var typeNames = []
+        for (var key in types) typeNames.push(key)
+        typeNames.sort()
+        if (typeNames.length === 0)
+            lines.push("  aucun <editWidget> trouvé")
+        else
+            for (var t = 0; t < typeNames.length; ++t)
+                lines.push("  " + typeNames[t] + " : " + types[typeNames[t]])
+
+        lines.push("")
+        lines.push("Champs visibles recherchés :")
+        var maxFields = Math.min(columns.length, 40)
+        for (var c = 0; c < maxFields; ++c) {
+            var name = String(columns[c].fieldName || "")
+            if (name.length === 0) continue
+            var present = lower.indexOf('name="' + name.toLowerCase() + '"') >= 0 ||
+                          lower.indexOf("name='" + name.toLowerCase() + "'") >= 0
+            lines.push("  " + name + " : " + (present ? "présent dans XML" : "non trouvé"))
+        }
+
+        var vrPos = lower.indexOf("valuerelation")
+        lines.push("")
+        if (vrPos >= 0) {
+            lines.push("Contexte de la première occurrence ValueRelation :")
+            lines.push(plainXmlContext(source, vrPos, 1400))
+        } else {
+            lines.push("Aucune chaîne « ValueRelation » trouvée dans le .qgs interne.")
+
+            // Helpful contexts for known multiple-field aliases/names.
+            for (var i = 0; i < columns.length; ++i) {
+                var colName = String(columns[i].fieldName || "")
+                var colAlias = String(columns[i].alias || "")
+                if (colAlias.toLowerCase().indexOf("multiple") < 0 &&
+                    colAlias.toLowerCase().indexOf("multiples") < 0)
+                    continue
+
+                var pos = lower.indexOf(colName.toLowerCase())
+                if (pos >= 0) {
+                    lines.push("")
+                    lines.push("Contexte du champ multiple « " + colName + " » :")
+                    lines.push(plainXmlContext(source, pos, 1200))
+                    break
+                }
+            }
+        }
+
+        projectXmlDiagnosticText = lines.join("\n")
+        projectXmlSourceName = sourceDescription
+    }
+
     function parseProjectWidgetConfigsXml(content, sourceDescription) {
-        if (content.length === 0 || content.indexOf("<qgis") < 0) {
+        var xml = String(content || "")
+
+        if (xml.length === 0 || xml.indexOf("<qgis") < 0) {
             projectConfigDiagnostic =
                 qsTr("Le contenu XML du projet n'a pas pu être lu depuis %1.")
                 .arg(sourceDescription)
+            buildProjectXmlDiagnostic(xml, sourceDescription, 0)
             return false
         }
 
-        var found = 0
-        var fieldRe = /<field\b[^>]*\bname=["']([^"']+)["'][^>]*>([\s\S]*?)<\/field>/gi
-        var match
+        var beforeCount = Object.keys(projectWidgetConfigs).length
 
-        while ((match = fieldRe.exec(content)) !== null) {
-            var fieldName = xmlDecode(match[1])
-            var body = match[2]
-            var edit = /<editWidget\b([^>]*)>([\s\S]*?)<\/editWidget>/i.exec(body)
-            if (!edit) continue
+        // Strategy 1: normal QGIS fieldConfiguration nesting.
+        parseValueRelationsStandard(xml)
 
-            var widgetType = xmlAttribute(edit[1], "type")
-            if (String(widgetType).toLowerCase() !== "valuerelation")
-                continue
+        // Strategy 2: anchor on actual technical field names.
+        if (Object.keys(projectWidgetConfigs).length === beforeCount)
+            parseValueRelationsByFieldNames(xml)
 
-            var cfgText = edit[2]
-            var cfg = ({
-                "Layer": optionValueFromConfig(cfgText, "Layer"),
-                "LayerName": optionValueFromConfig(cfgText, "LayerName"),
-                "Key": optionValueFromConfig(cfgText, "Key"),
-                "Value": optionValueFromConfig(cfgText, "Value"),
-                "AllowMulti": optionValueFromConfig(cfgText, "AllowMulti"),
-                "FilterExpression": optionValueFromConfig(cfgText, "FilterExpression"),
-                "OrderByValue": optionValueFromConfig(cfgText, "OrderByValue"),
-                "AllowNull": optionValueFromConfig(cfgText, "AllowNull")
-            })
+        // Strategy 3: global editWidget scan and nearest field association.
+        if (Object.keys(projectWidgetConfigs).length === beforeCount)
+            parseValueRelationsGlobal(xml)
 
-            var fieldIndex = projectFieldIndexByName(fieldName)
-            if (fieldIndex >= 0) {
-                registerProjectWidgetConfig(fieldIndex, fieldName, "ValueRelation", cfg)
-                found++
-            }
+        // Strategy 4: some embedded XML fragments may be XML-escaped once.
+        if (Object.keys(projectWidgetConfigs).length === beforeCount &&
+            xml.toLowerCase().indexOf("&lt;editwidget") >= 0) {
+            var decoded = xmlDecode(xml)
+            parseValueRelationsStandard(decoded)
+            if (Object.keys(projectWidgetConfigs).length === beforeCount)
+                parseValueRelationsByFieldNames(decoded)
+            if (Object.keys(projectWidgetConfigs).length === beforeCount)
+                parseValueRelationsGlobal(decoded)
         }
+
+        var afterCount = Object.keys(projectWidgetConfigs).length
+        var found = Math.max(0, afterCount - beforeCount)
+
+        buildProjectXmlDiagnostic(xml, sourceDescription, found)
 
         if (found > 0) {
             projectConfigDiagnostic =
@@ -1336,7 +1605,7 @@ Item {
         }
 
         projectConfigDiagnostic =
-            qsTr("Aucune ValueRelation n'a été trouvée dans %1.")
+            qsTr("Aucune ValueRelation exploitable n'a été associée aux champs de la couche dans %1. Ouvrez « Diagnostic projet » pour voir la structure XML détectée.")
             .arg(sourceDescription)
         return false
     }
@@ -1938,7 +2207,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.5 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.6 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -1953,7 +2222,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.5 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.6 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2279,7 +2548,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.5 zoom: " + zoomError)
+            console.log("QField Table v0.8.6 zoom: " + zoomError)
             return false
         }
     }
@@ -2369,7 +2638,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.5 chargé")
+        console.log("QField Table v0.8.6 chargé")
     }
 
     Connections {
@@ -2467,7 +2736,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.5")
+        title: qsTr("QField Table — v0.8.6")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -3026,7 +3295,7 @@ Item {
                 }
             }
 
-            // v0.8.5 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.6 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -3609,6 +3878,58 @@ Item {
     }
 
     QfDialog {
+        id: projectXmlDiagnosticDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Diagnostic du projet QGIS")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.max(900, parent.width * 0.80) : 1050
+        height: parent ? Math.max(620, parent.height * 0.78) : 720
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+
+        contentItem: ColumnLayout {
+            spacing: 8
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Ce diagnostic ne modifie aucune donnée. Il montre seulement ce que QField Table retrouve dans le .qgs interne.")
+                wrapMode: Text.WordWrap
+                font.bold: true
+            }
+
+            TextArea {
+                id: projectXmlDiagnosticArea
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                readOnly: true
+                selectByMouse: true
+                wrapMode: TextEdit.Wrap
+                text: plugin.projectXmlDiagnosticText
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Button {
+                    text: qsTr("Copier")
+                    onClicked: {
+                        projectXmlDiagnosticArea.selectAll()
+                        projectXmlDiagnosticArea.copy()
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: qsTr("Fermer")
+                    onClicked: projectXmlDiagnosticDialog.close()
+                }
+            }
+        }
+    }
+
+    QfDialog {
         id: batchEditDialog
         parent: mainWindow.contentItem
         modal: true
@@ -3750,6 +4071,24 @@ Item {
                          : qsTr("Configuration relationnelle en cours de lecture…"))
                 wrapMode: Text.WordWrap
                 opacity: 0.68
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: plugin.projectConfigReadAttempted
+
+                Label {
+                    Layout.fillWidth: true
+                    text: plugin.projectConfigDiagnostic
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                }
+
+                Button {
+                    text: qsTr("Diagnostic projet…")
+                    enabled: plugin.projectXmlDiagnosticText.length > 0
+                    onClicked: projectXmlDiagnosticDialog.open()
+                }
             }
 
             Item { Layout.fillHeight: true }
