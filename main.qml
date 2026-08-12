@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import org.qfield
 import org.qgis
 import Theme
+import "qgzreader.js" as QgzReader
 
 Item {
     id: plugin
@@ -27,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.4 — sélection et modification en lot.
+    // v0.8.5 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -38,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.4 — source ValueRelation complète.
+    // v0.8.5 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -56,7 +57,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.4 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.5 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -153,12 +154,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.4 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.5 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.4 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.5 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -241,7 +242,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.4 iterator: " + error)
+            console.log("QField Table v0.8.5 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -284,7 +285,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.4 filtered iterator: " + error)
+            console.log("QField Table v0.8.5 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -406,7 +407,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.4 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.5 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -465,7 +466,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.4 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.5 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -522,7 +523,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.4 configuration invalide: " + e)
+            console.log("QField Table v0.8.5 configuration invalide: " + e)
             return ({})
         }
     }
@@ -546,7 +547,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.4 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.5 lecture propriété couche: " + e)
         }
         return null
     }
@@ -578,7 +579,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.4 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.5 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1285,41 +1286,11 @@ Item {
         return ""
     }
 
-    function readProjectWidgetConfigsFromXml() {
-        projectConfigReadAttempted = true
-        projectConfigDiagnostic = ""
-
-        var path = projectFilePath()
-        if (path.length === 0) {
-            projectConfigDiagnostic = qsTr("Impossible de déterminer le fichier du projet.")
-            return false
-        }
-
-        if (/\.qgz$/i.test(path)) {
-            projectConfigDiagnostic =
-                qsTr("Le projet ouvert est un .qgz. La lecture XML directe nécessite actuellement un projet .qgs.")
-            return false
-        }
-
-        if (!/\.qgs$/i.test(path)) {
-            projectConfigDiagnostic =
-                qsTr("Format de projet non pris en charge pour la lecture directe : %1").arg(path)
-            return false
-        }
-
-        var content = ""
-        try {
-            var bytes = FileUtils.readFileContent(path)
-            content = String(bytes || "")
-        } catch (e1) {
-            projectConfigDiagnostic =
-                qsTr("Lecture du projet impossible : %1").arg(String(e1))
-            return false
-        }
-
+    function parseProjectWidgetConfigsXml(content, sourceDescription) {
         if (content.length === 0 || content.indexOf("<qgis") < 0) {
             projectConfigDiagnostic =
-                qsTr("Le contenu XML du projet n'a pas pu être lu.")
+                qsTr("Le contenu XML du projet n'a pas pu être lu depuis %1.")
+                .arg(sourceDescription)
             return false
         }
 
@@ -1358,12 +1329,73 @@ Item {
 
         if (found > 0) {
             projectConfigDiagnostic =
-                qsTr("%1 ValueRelation lue(s) directement dans le projet QGIS.").arg(found)
+                qsTr("%1 ValueRelation lue(s) dans %2.")
+                .arg(found)
+                .arg(sourceDescription)
             return true
         }
 
         projectConfigDiagnostic =
-            qsTr("Aucune ValueRelation n'a été trouvée dans le XML du projet.")
+            qsTr("Aucune ValueRelation n'a été trouvée dans %1.")
+            .arg(sourceDescription)
+        return false
+    }
+
+    function readProjectWidgetConfigsFromXml() {
+        projectConfigReadAttempted = true
+        projectConfigDiagnostic = ""
+
+        var path = projectFilePath()
+        if (path.length === 0) {
+            projectConfigDiagnostic = qsTr("Impossible de déterminer le fichier du projet.")
+            return false
+        }
+
+        var bytes
+        try {
+            bytes = FileUtils.readFileContent(path)
+        } catch (e1) {
+            projectConfigDiagnostic =
+                qsTr("Lecture du projet impossible : %1").arg(String(e1))
+            return false
+        }
+
+        if (/\.qgs$/i.test(path)) {
+            try {
+                return parseProjectWidgetConfigsXml(
+                    QgzReader.bytesToUtf8(QgzReader.toUint8Array(bytes)),
+                    qsTr("le projet .qgs")
+                )
+            } catch (e2) {
+                projectConfigDiagnostic =
+                    qsTr("Lecture du .qgs impossible : %1").arg(String(e2))
+                return false
+            }
+        }
+
+        if (/\.qgz$/i.test(path)) {
+            try {
+                var projectEntry = QgzReader.readQgsFromQgz(bytes)
+
+                if (!projectEntry || !projectEntry.text) {
+                    projectConfigDiagnostic =
+                        qsTr("Le .qgz a été lu, mais aucun fichier .qgs n'a été trouvé dans l'archive.")
+                    return false
+                }
+
+                return parseProjectWidgetConfigsXml(
+                    projectEntry.text,
+                    qsTr("le projet compressé .qgz (%1)").arg(projectEntry.name)
+                )
+            } catch (e3) {
+                projectConfigDiagnostic =
+                    qsTr("Lecture du projet .qgz impossible : %1").arg(String(e3))
+                return false
+            }
+        }
+
+        projectConfigDiagnostic =
+            qsTr("Format de projet non pris en charge : %1").arg(path)
         return false
     }
 
@@ -1906,7 +1938,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.4 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.5 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -1921,7 +1953,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.4 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.5 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2247,7 +2279,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.4 zoom: " + zoomError)
+            console.log("QField Table v0.8.5 zoom: " + zoomError)
             return false
         }
     }
@@ -2337,7 +2369,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.4 chargé")
+        console.log("QField Table v0.8.5 chargé")
     }
 
     Connections {
@@ -2435,7 +2467,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.4")
+        title: qsTr("QField Table — v0.8.5")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -2994,7 +3026,7 @@ Item {
                 }
             }
 
-            // v0.8.4 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.5 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
