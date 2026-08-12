@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.9
-description=QField Table v0.8.9 : résolution des couches relationnelles via ProjectUtils.mapLayers(), API QML-compatible de QField.
+version=0.8.10
+description=QField Table v0.8.10 : correctif FilterExpression complet pour les ValueRelation.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
