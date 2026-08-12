@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.3
-description=QField Table v0.8.3 : ValueRelation lues depuis le formulaire du projet, filtres QGIS respectés et journal avant/après.
+version=0.8.4
+description=QField Table v0.8.4 : lecture directe des ValueRelation enregistrées dans le projet QGIS (.qgs), y compris Layer, Key, Value, AllowMulti et FilterExpression.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

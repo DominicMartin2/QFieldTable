@@ -27,7 +27,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.3 — sélection et modification en lot.
+    // v0.8.4 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -38,7 +38,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.3 — source ValueRelation complète.
+    // v0.8.4 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -51,10 +51,12 @@ Item {
     // Configuration de formulaire réellement utilisée par QField.
     property var projectWidgetConfigs: ({})
     property string batchRelationDiagnostic: ""
+    property string projectConfigDiagnostic: ""
+    property bool projectConfigReadAttempted: false
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.3 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.4 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -151,12 +153,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.3 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.4 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.3 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.4 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -177,6 +179,8 @@ Item {
 
     function resetData() {
         clearProjectWidgetConfigs()
+        projectConfigReadAttempted = false
+        projectConfigDiagnostic = ""
         previewFeatures = []
         totalFeatureCount = 0
         matchedFeatureCount = 0
@@ -237,7 +241,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.3 iterator: " + error)
+            console.log("QField Table v0.8.4 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -280,7 +284,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.3 filtered iterator: " + error)
+            console.log("QField Table v0.8.4 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -402,7 +406,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.3 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.4 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -461,7 +465,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.3 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.4 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -518,7 +522,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.3 configuration invalide: " + e)
+            console.log("QField Table v0.8.4 configuration invalide: " + e)
             return ({})
         }
     }
@@ -542,7 +546,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.3 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.4 lecture propriété couche: " + e)
         }
         return null
     }
@@ -574,7 +578,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.3 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.4 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1227,6 +1231,142 @@ Item {
         catch (e) { return "" }
     }
 
+    function xmlDecode(value) {
+        var s = String(value === undefined || value === null ? "" : value)
+        return s.replace(/&quot;/g, "\"")
+                .replace(/&apos;/g, "'")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&amp;/g, "&")
+                .replace(/&#10;/g, "\n")
+                .replace(/&#13;/g, "\r")
+    }
+
+    function xmlAttribute(tagText, attributeName) {
+        var safeName = String(attributeName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        var re = new RegExp("\\\\b" + safeName + "\\\\s*=\\\\s*[\\\"']([^\\\"']*)[\\\"']", "i")
+        var m = re.exec(String(tagText || ""))
+        return m ? xmlDecode(m[1]) : ""
+    }
+
+    function projectFilePath() {
+        try {
+            var p = typeof qgisProject.fileName === "function"
+                    ? qgisProject.fileName() : qgisProject.fileName
+            return String(p || "")
+        } catch (e) {
+            return ""
+        }
+    }
+
+    function projectFieldIndexByName(fieldName) {
+        var wanted = String(fieldName || "")
+        for (var i = 0; i < columns.length; ++i) {
+            if (String(columns[i].fieldName || "") === wanted)
+                return Number(columns[i].fieldIndex)
+        }
+        return -1
+    }
+
+    function optionValueFromConfig(configText, optionName) {
+        var escaped = String(optionName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        var patterns = [
+            new RegExp("<Option\\\\b[^>]*\\\\bname=[\\\"']" + escaped + "[\\\"'][^>]*>", "i"),
+            new RegExp("<Option\\\\b[^>]*\\\\bname=[\\\"']" + escaped + "[\\\"'][^>]*/>", "i")
+        ]
+        for (var i = 0; i < patterns.length; ++i) {
+            var m = patterns[i].exec(configText)
+            if (m) {
+                var value = xmlAttribute(m[0], "value")
+                if (value.length > 0 || /value\s*=/.test(m[0]))
+                    return value
+            }
+        }
+        return ""
+    }
+
+    function readProjectWidgetConfigsFromXml() {
+        projectConfigReadAttempted = true
+        projectConfigDiagnostic = ""
+
+        var path = projectFilePath()
+        if (path.length === 0) {
+            projectConfigDiagnostic = qsTr("Impossible de déterminer le fichier du projet.")
+            return false
+        }
+
+        if (/\.qgz$/i.test(path)) {
+            projectConfigDiagnostic =
+                qsTr("Le projet ouvert est un .qgz. La lecture XML directe nécessite actuellement un projet .qgs.")
+            return false
+        }
+
+        if (!/\.qgs$/i.test(path)) {
+            projectConfigDiagnostic =
+                qsTr("Format de projet non pris en charge pour la lecture directe : %1").arg(path)
+            return false
+        }
+
+        var content = ""
+        try {
+            var bytes = FileUtils.readFileContent(path)
+            content = String(bytes || "")
+        } catch (e1) {
+            projectConfigDiagnostic =
+                qsTr("Lecture du projet impossible : %1").arg(String(e1))
+            return false
+        }
+
+        if (content.length === 0 || content.indexOf("<qgis") < 0) {
+            projectConfigDiagnostic =
+                qsTr("Le contenu XML du projet n'a pas pu être lu.")
+            return false
+        }
+
+        var found = 0
+        var fieldRe = /<field\b[^>]*\bname=["']([^"']+)["'][^>]*>([\s\S]*?)<\/field>/gi
+        var match
+
+        while ((match = fieldRe.exec(content)) !== null) {
+            var fieldName = xmlDecode(match[1])
+            var body = match[2]
+            var edit = /<editWidget\b([^>]*)>([\s\S]*?)<\/editWidget>/i.exec(body)
+            if (!edit) continue
+
+            var widgetType = xmlAttribute(edit[1], "type")
+            if (String(widgetType).toLowerCase() !== "valuerelation")
+                continue
+
+            var cfgText = edit[2]
+            var cfg = ({
+                "Layer": optionValueFromConfig(cfgText, "Layer"),
+                "LayerName": optionValueFromConfig(cfgText, "LayerName"),
+                "Key": optionValueFromConfig(cfgText, "Key"),
+                "Value": optionValueFromConfig(cfgText, "Value"),
+                "AllowMulti": optionValueFromConfig(cfgText, "AllowMulti"),
+                "FilterExpression": optionValueFromConfig(cfgText, "FilterExpression"),
+                "OrderByValue": optionValueFromConfig(cfgText, "OrderByValue"),
+                "AllowNull": optionValueFromConfig(cfgText, "AllowNull")
+            })
+
+            var fieldIndex = projectFieldIndexByName(fieldName)
+            if (fieldIndex >= 0) {
+                registerProjectWidgetConfig(fieldIndex, fieldName, "ValueRelation", cfg)
+                found++
+            }
+        }
+
+        if (found > 0) {
+            projectConfigDiagnostic =
+                qsTr("%1 ValueRelation lue(s) directement dans le projet QGIS.").arg(found)
+            return true
+        }
+
+        projectConfigDiagnostic =
+            qsTr("Aucune ValueRelation n'a été trouvée dans le XML du projet.")
+        return false
+    }
+
     function registerProjectWidgetConfig(fieldIndex, fieldName, editorWidget, editorWidgetConfig) {
         var idx = Number(fieldIndex)
         if (isNaN(idx) || idx < 0) return
@@ -1262,6 +1402,11 @@ Item {
         var col = columns[columnIndex]
         var fieldIndex = Number(col.fieldIndex)
         var cached = projectWidgetConfigs[String(fieldIndex)]
+
+        if ((cached === undefined || cached === null) && !projectConfigReadAttempted) {
+            readProjectWidgetConfigsFromXml()
+            cached = projectWidgetConfigs[String(fieldIndex)]
+        }
 
         if (cached !== undefined && cached !== null) {
             info.type = String(cached.type || "")
@@ -1421,13 +1566,17 @@ Item {
 
         if (type !== "valuerelation") {
             batchRelationDiagnostic =
-                qsTr("Widget détecté : %1 — aucune ValueRelation exploitable.")
-                .arg(info.type || qsTr("non exposé"))
+                projectConfigDiagnostic.length > 0
+                ? projectConfigDiagnostic
+                : qsTr("Widget détecté : %1 — aucune ValueRelation exploitable.")
+                  .arg(info.type || qsTr("non exposé"))
             return false
         }
 
         batchRelationLayerId =
             batchConfigString(cfg, ["Layer", "layer", "LayerId", "layerId"])
+        var relationLayerName =
+            batchConfigString(cfg, ["LayerName", "layerName"])
         batchRelationKeyField =
             batchConfigString(cfg, ["Key", "key", "KeyField", "keyField"])
         batchRelationValueField =
@@ -1436,6 +1585,8 @@ Item {
             batchConfigString(cfg, ["FilterExpression", "filterExpression", "Filter", "filter"])
 
         batchRelationLayer = findProjectVectorLayerById(batchRelationLayerId)
+        if (batchRelationLayer === null && relationLayerName.length > 0)
+            batchRelationLayer = findProjectVectorLayerById(relationLayerName)
 
         var valid = batchRelationLayer !== null &&
                     batchRelationKeyField.length > 0 &&
@@ -1443,7 +1594,7 @@ Item {
 
         if (valid) {
             batchRelationDiagnostic =
-                qsTr("ValueRelation du projet : %1 → clé %2 → titre %3%4")
+                qsTr("ValueRelation lue dans le projet : %1 → clé %2 → titre %3%4")
                 .arg(layerName(batchRelationLayer))
                 .arg(batchRelationKeyField)
                 .arg(batchRelationValueField)
@@ -1755,7 +1906,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.3 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.4 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -1770,7 +1921,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.3 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.4 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2096,7 +2247,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.3 zoom: " + zoomError)
+            console.log("QField Table v0.8.4 zoom: " + zoomError)
             return false
         }
     }
@@ -2186,7 +2337,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.3 chargé")
+        console.log("QField Table v0.8.4 chargé")
     }
 
     Connections {
@@ -2284,7 +2435,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.3")
+        title: qsTr("QField Table — v0.8.4")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -2843,7 +2994,7 @@ Item {
                 }
             }
 
-            // v0.8.3 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.4 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
