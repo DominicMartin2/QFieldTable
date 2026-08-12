@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.6 — sélection et modification en lot.
+    // v0.8.7 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.6 — source ValueRelation complète.
+    // v0.8.7 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -59,7 +59,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.6 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.7 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -156,12 +156,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.6 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.7 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.6 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.7 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -246,7 +246,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.6 iterator: " + error)
+            console.log("QField Table v0.8.7 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -289,7 +289,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.6 filtered iterator: " + error)
+            console.log("QField Table v0.8.7 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -411,7 +411,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.6 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.7 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -470,7 +470,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.6 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.7 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -527,7 +527,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.6 configuration invalide: " + e)
+            console.log("QField Table v0.8.7 configuration invalide: " + e)
             return ({})
         }
     }
@@ -551,7 +551,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.6 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.7 lecture propriété couche: " + e)
         }
         return null
     }
@@ -583,7 +583,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.6 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.7 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1248,8 +1248,14 @@ Item {
     }
 
     function xmlAttribute(tagText, attributeName) {
-        var safeName = String(attributeName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        var re = new RegExp("\\\\b" + safeName + "\\\\s*=\\\\s*[\\\"']([^\\\"']*)[\\\"']", "i")
+        var safeName = String(attributeName)
+                .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+        var re = new RegExp(
+            "\\b" + safeName + "\\s*=\\s*[\"']([^\"']*)[\"']",
+            "i"
+        )
+
         var m = re.exec(String(tagText || ""))
         return m ? xmlDecode(m[1]) : ""
     }
@@ -1274,19 +1280,23 @@ Item {
     }
 
     function optionValueFromConfig(configText, optionName) {
-        var escaped = String(optionName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        var patterns = [
-            new RegExp("<Option\\\\b[^>]*\\\\bname=[\\\"']" + escaped + "[\\\"'][^>]*>", "i"),
-            new RegExp("<Option\\\\b[^>]*\\\\bname=[\\\"']" + escaped + "[\\\"'][^>]*/>", "i")
-        ]
-        for (var i = 0; i < patterns.length; ++i) {
-            var m = patterns[i].exec(configText)
-            if (m) {
-                var value = xmlAttribute(m[0], "value")
-                if (value.length > 0 || /value\s*=/.test(m[0]))
-                    return value
+        var source = String(configText || "")
+        var wanted = String(optionName || "")
+
+        var optionRe = /<Option\b[^>]*>/gi
+        var match
+
+        while ((match = optionRe.exec(source)) !== null) {
+            var tag = match[0]
+            var name = xmlAttribute(tag, "name")
+
+            if (name === wanted) {
+                // Some QGIS options of type "invalid" have no value attr.
+                // Return the empty string in that case, which is correct.
+                return xmlAttribute(tag, "value")
             }
         }
+
         return ""
     }
 
@@ -1483,7 +1493,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.8.6 — diagnostic projet")
+        lines.push("QField Table v0.8.7 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -1904,10 +1914,11 @@ Item {
                      : "")
         } else {
             batchRelationDiagnostic =
-                qsTr("ValueRelation trouvée, mais configuration incomplète : couche=%1, clé=%2, titre=%3")
+                qsTr("ValueRelation trouvée, mais configuration incomplète : couche=%1, clé=%2, titre=%3 — source XML : %4")
                 .arg(batchRelationLayerId)
                 .arg(batchRelationKeyField)
                 .arg(batchRelationValueField)
+                .arg(projectConfigDiagnostic)
         }
 
         return valid
@@ -2207,7 +2218,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.6 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.7 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -2222,7 +2233,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.6 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.7 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2548,7 +2559,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.6 zoom: " + zoomError)
+            console.log("QField Table v0.8.7 zoom: " + zoomError)
             return false
         }
     }
@@ -2638,7 +2649,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.6 chargé")
+        console.log("QField Table v0.8.7 chargé")
     }
 
     Connections {
@@ -2736,7 +2747,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.6")
+        title: qsTr("QField Table — v0.8.7")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -3295,7 +3306,7 @@ Item {
                 }
             }
 
-            // v0.8.6 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.7 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
