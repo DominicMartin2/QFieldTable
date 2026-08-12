@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.11
-description=QField Table v0.8.11 : correction du collecteur FeatureListModel et comptage des valeurs relationnelles filtrées.
+version=0.8.12
+description=QField Table v0.8.12 : lecture directe des valeurs ValueRelation via LayerUtils et FeatureIterator.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
