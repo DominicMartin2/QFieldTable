@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.10
-description=QField Table v0.8.10 : correctif FilterExpression complet pour les ValueRelation.
+version=0.8.11
+description=QField Table v0.8.11 : correction du collecteur FeatureListModel et comptage des valeurs relationnelles filtrées.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

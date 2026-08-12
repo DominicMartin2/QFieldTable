@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.10 — sélection et modification en lot.
+    // v0.8.11 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.10 — source ValueRelation complète.
+    // v0.8.11 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -55,6 +55,7 @@ Item {
     property string batchRelationLayerSource: ""
     property string batchRelationLayerName: ""
     property string batchRelationResolutionMethod: ""
+    property int batchRelationModelCount: 0
     property string projectConfigDiagnostic: ""
     property bool projectConfigReadAttempted: false
     property string projectXmlDiagnosticText: ""
@@ -62,7 +63,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.10 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.11 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -159,12 +160,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.10 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.11 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.10 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.11 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -249,7 +250,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.10 iterator: " + error)
+            console.log("QField Table v0.8.11 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -292,7 +293,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.10 filtered iterator: " + error)
+            console.log("QField Table v0.8.11 filtered iterator: " + error)
         }
         updateLoadStatus()
         if (columns.length > 0) rowBuildTimer.restart()
@@ -414,7 +415,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.10 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.11 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -473,7 +474,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.10 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.11 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -530,7 +531,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.10 configuration invalide: " + e)
+            console.log("QField Table v0.8.11 configuration invalide: " + e)
             return ({})
         }
     }
@@ -554,7 +555,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.10 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.11 lecture propriété couche: " + e)
         }
         return null
     }
@@ -586,7 +587,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.10 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.11 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1502,7 +1503,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.8.10 — diagnostic projet")
+        lines.push("QField Table v0.8.11 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -1617,7 +1618,7 @@ Item {
 
         if (found > 0) {
             projectConfigDiagnostic =
-                qsTr("%1 ValueRelation lue(s) dans %2.")
+                qsTr("%1 configuration(s) ValueRelation détectée(s) dans %2.")
                 .arg(found)
                 .arg(sourceDescription)
             return true
@@ -1954,7 +1955,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.8.10 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.8.11 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -1985,7 +1986,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.8.10 direct layer lookup: " + e0)
+                console.log("QField Table v0.8.11 direct layer lookup: " + e0)
             }
         }
 
@@ -2145,6 +2146,7 @@ Item {
         next.push({"rawValue": raw, "label": label})
         next.sort(function(a,b) { return String(a.label).localeCompare(String(b.label)) })
         batchRelationItems = next
+        batchRelationModelCount = next.length
         Qt.callLater(function() {
             if (plugin.batchRelationItems.length > 0 &&
                 batchRelationCombo.currentIndex < 0) {
@@ -2156,6 +2158,7 @@ Item {
 
     function rebuildBatchRelationItems(columnIndex) {
         batchRelationItems = []
+        batchRelationModelCount = 0
 
         // Premier choix : la vraie table ValueRelation. Le FeatureListModel
         // ci-dessous énumère toutes les entités, y compris celles qui n'ont
@@ -2166,8 +2169,22 @@ Item {
             batchRelationModel.keyField = batchRelationKeyField
             batchRelationModel.displayValueField = batchRelationValueField
             batchRelationModel.filterExpression = batchRelationFilterExpression
-            batchRelationModel.currentLayer = batchRelationLayer
-            batchRelationCollector.enabled = true
+            batchRelationModel.orderByValue = true
+            batchRelationModel.addNull = false
+
+            // Reattach on the next event-loop turn so FeatureListModel has
+            // received the complete key/value/filter configuration first.
+            Qt.callLater(function() {
+                batchRelationModel.currentLayer = plugin.batchRelationLayer
+                batchRelationCollector.enabled = true
+
+                // A second tick lets the QAbstractItemModel populate before
+                // the UI evaluates its count/status.
+                Qt.callLater(function() {
+                    plugin.batchRelationModelCount =
+                        plugin.batchRelationItems.length
+                })
+            })
             return
         }
 
@@ -2188,6 +2205,7 @@ Item {
         }
         result.sort(function(a,b) { return String(a.label).localeCompare(String(b.label)) })
         batchRelationItems = result
+        batchRelationModelCount = result.length
         Qt.callLater(function() {
             if (plugin.batchRelationItems.length > 0) {
                 batchRelationCombo.currentIndex = 0
@@ -2425,7 +2443,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.10 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.11 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -2440,7 +2458,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.10 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.11 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -2766,7 +2784,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.10 zoom: " + zoomError)
+            console.log("QField Table v0.8.11 zoom: " + zoomError)
             return false
         }
     }
@@ -2856,7 +2874,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.10 chargé")
+        console.log("QField Table v0.8.11 chargé")
     }
 
     Connections {
@@ -2954,7 +2972,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.10")
+        title: qsTr("QField Table — v0.8.11")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -3125,11 +3143,31 @@ Item {
                         delegate: Item {
                             width: 1
                             height: 1
-                            Component.onCompleted: {
-                                var raw = model.KeyField !== undefined ? model.KeyField : ""
-                                var label = model.DisplayString !== undefined ? model.DisplayString : raw
-                                plugin.registerBatchRelationOption(raw, label)
+
+                            // FeatureListModel role names are exposed directly
+                            // to the delegate: KeyField, DisplayString,
+                            // GroupField and FeatureId.
+                            property var relationRaw:
+                                typeof KeyField !== "undefined" ? KeyField : ""
+                            property var relationLabel:
+                                typeof DisplayString !== "undefined"
+                                ? DisplayString
+                                : relationRaw
+
+                            function publishRelationValue() {
+                                if (relationRaw !== undefined &&
+                                    relationRaw !== null &&
+                                    String(relationRaw).length > 0) {
+                                    plugin.registerBatchRelationOption(
+                                        relationRaw,
+                                        relationLabel
+                                    )
+                                }
                             }
+
+                            Component.onCompleted: publishRelationValue()
+                            onRelationRawChanged: publishRelationValue()
+                            onRelationLabelChanged: publishRelationValue()
                         }
                     }
                 }
@@ -3513,7 +3551,7 @@ Item {
                 }
             }
 
-            // v0.8.10 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.11 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -4289,6 +4327,17 @@ Item {
                          : qsTr("Configuration relationnelle en cours de lecture…"))
                 wrapMode: Text.WordWrap
                 opacity: 0.68
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.batchRelationLayer !== null
+                text: qsTr("%1 valeur(s) disponible(s) après application du filtre.")
+                      .arg(plugin.batchRelationItems.length)
+                font.bold: true
+                color: plugin.batchRelationItems.length > 0
+                       ? Theme.mainTextColor
+                       : "#a06000"
             }
 
             RowLayout {
