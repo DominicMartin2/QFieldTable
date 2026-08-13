@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.13
-description=QField Table v0.8.13 : import complet des vues partagées (filtres, colonnes visibles et ordre).
+version=0.8.14
+description=QField Table v0.8.14 : interface de modification en lot nettoyée, diagnostics techniques masqués.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
