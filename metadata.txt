@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.9.0
-description=QField Table v0.9.0 : historique persistant des modifications en lot et export CSV.
+version=0.9.0.1
+description=QField Table v0.9.0.1 : correctif de chargement Qt 6 pour le journal persistant.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
