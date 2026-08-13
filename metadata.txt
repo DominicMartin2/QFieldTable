@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.14
-description=QField Table v0.8.14 : interface de modification en lot nettoyée, diagnostics techniques masqués.
+version=0.8.15
+description=QField Table v0.8.15 : nettoyage des messages d'import et retrait de la création de valeurs pour les relations multiples.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
