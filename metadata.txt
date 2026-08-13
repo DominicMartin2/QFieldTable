@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.8.16
-description=QField Table v0.8.16 : reconstruction fiable du schéma lors d'un changement de couche.
+version=0.9.0
+description=QField Table v0.9.0 : historique persistant des modifications en lot et export CSV.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
