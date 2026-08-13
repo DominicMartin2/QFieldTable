@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.9.2
-description=QField Table v0.9.2 : journal dans la table qfield_table_journal avec secours JSON.
+version=0.9.3
+description=QField Table v0.9.3 : journal utilisant une clé métier configurable pour identifier les entités.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
