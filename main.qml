@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.8.15 — sélection et modification en lot.
+    // v0.8.16 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.8.15 — source ValueRelation complète.
+    // v0.8.16 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -49,6 +49,12 @@ Item {
     property string batchNewRelationLabel: ""
     // Journal de sécurité de la session. Une entrée par entité réellement traitée.
     property var batchJournal: []
+    // v0.8.16 — le FeatureModel de schéma est détaché/rattaché
+    // explicitement lors d'un changement de couche.
+    property var schemaLayer: null
+    property var schemaFeature: null
+    property bool schemaCollectorEnabled: false
+    property int schemaGeneration: 0
     // Configuration de formulaire réellement utilisée par QField.
     property var projectWidgetConfigs: ({})
     property string batchRelationDiagnostic: ""
@@ -65,7 +71,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.8.15 : cache des libellés ValueRelation / ValueMap.
+    // v0.8.16 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -162,12 +168,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.8.15 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.8.16 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.8.15 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.8.16 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -180,13 +186,53 @@ Item {
         }
     }
 
+    function detachSchemaCollector() {
+        schemaCollectorEnabled = false
+        schemaFeature = null
+        schemaLayer = null
+        schemaGeneration++
+        schemaPollTimer.stop()
+    }
+
+    function attachSchemaCollector() {
+        if (!selectedLayer || previewFeatures.length === 0) {
+            schemaCollectorEnabled = false
+            return
+        }
+
+        // Two-step attachment is intentional: it guarantees that the
+        // FeatureModel sees a null layer/feature state before the new layer.
+        var generation = schemaGeneration
+
+        Qt.callLater(function() {
+            if (generation !== plugin.schemaGeneration)
+                return
+
+            plugin.schemaLayer = plugin.selectedLayer
+            plugin.schemaFeature = plugin.previewFeatures[0]
+
+            Qt.callLater(function() {
+                if (generation !== plugin.schemaGeneration)
+                    return
+
+                plugin.schemaCollectorEnabled = true
+                schemaPollTimer.restart()
+            })
+        })
+    }
+
     function selectLayer(index) {
         if (index < 0 || index >= vectorLayers.length) return
+
+        detachSchemaCollector()
         selectedLayer = vectorLayers[index]
         inspectSelectedLayer()
     }
 
     function resetData() {
+        schemaCollectorEnabled = false
+        schemaFeature = null
+        schemaLayer = null
         clearProjectWidgetConfigs()
         projectConfigReadAttempted = false
         projectConfigDiagnostic = ""
@@ -252,11 +298,11 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.8.15 iterator: " + error)
+            console.log("QField Table v0.8.16 iterator: " + error)
         }
 
         updateLoadStatus()
-        schemaPollTimer.restart()
+        attachSchemaCollector()
     }
 
     function updateLoadStatus() {
@@ -295,11 +341,16 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.8.15 filtered iterator: " + error)
+            console.log("QField Table v0.8.16 filtered iterator: " + error)
         }
         updateLoadStatus()
-        if (columns.length > 0) rowBuildTimer.restart()
-        else schemaPollTimer.restart()
+
+        if (columns.length > 0) {
+            rowBuildTimer.restart()
+        } else {
+            detachSchemaCollector()
+            attachSchemaCollector()
+        }
     }
 
     function expressionFieldName(name) {
@@ -417,7 +468,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.8.15 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.8.16 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -476,7 +527,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.8.15 : ne parcourt plus toutes les cellules au chargement.
+        // v0.8.16 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -533,7 +584,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.8.15 configuration invalide: " + e)
+            console.log("QField Table v0.8.16 configuration invalide: " + e)
             return ({})
         }
     }
@@ -557,7 +608,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.8.15 lecture propriété couche: " + e)
+            console.log("QField Table v0.8.16 lecture propriété couche: " + e)
         }
         return null
     }
@@ -589,7 +640,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.8.15 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.8.16 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1630,7 +1681,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.8.15 — diagnostic projet")
+        lines.push("QField Table v0.8.16 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -2082,7 +2133,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.8.15 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.8.16 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2113,7 +2164,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.8.15 direct layer lookup: " + e0)
+                console.log("QField Table v0.8.16 direct layer lookup: " + e0)
             }
         }
 
@@ -2365,7 +2416,7 @@ Item {
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.8.15 relation iterator: " + e
+                "QField Table v0.8.16 relation iterator: " + e
             )
         } finally {
             try {
@@ -2685,7 +2736,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.8.15 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.8.16 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -2700,7 +2751,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.8.15 : la construction initiale ne lit plus chaque attribut de
+        // v0.8.16 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -3026,7 +3077,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.8.15 zoom: " + zoomError)
+            console.log("QField Table v0.8.16 zoom: " + zoomError)
             return false
         }
     }
@@ -3116,7 +3167,7 @@ Item {
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.8.15 chargé")
+        console.log("QField Table v0.8.16 chargé")
     }
 
     Connections {
@@ -3150,7 +3201,16 @@ Item {
         running: false
         property int attempts: 0
         onTriggered: {
+            if (!plugin.schemaCollectorEnabled ||
+                !plugin.schemaLayer ||
+                !plugin.schemaFeature) {
+                stop()
+                attempts = 0
+                return
+            }
+
             attempts++
+
             if (plugin.columns.length > 0) {
                 // Laisse un bref délai pour que le Repeater ait enregistré tout le schéma.
                 rowBuildTimer.restart()
@@ -3161,7 +3221,9 @@ Item {
             } else if (attempts >= 20) {
                 stop()
                 attempts = 0
-                plugin.diagnosticMessage = qsTr("Le FeatureModel n'a exposé aucun attribut après 5 secondes.")
+                plugin.diagnosticMessage =
+                    qsTr("Le FeatureModel n'a exposé aucun attribut après 5 secondes pour la couche « %1 ».")
+                    .arg(plugin.layerName(plugin.schemaLayer))
             }
         }
         function restart() {
@@ -3214,7 +3276,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.8.15")
+        title: qsTr("QField Table — v0.8.16")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -3335,7 +3397,7 @@ Item {
                 visible: plugin.previewFeatures.length > 0
                 clip: true
 
-                property var referenceFeature: plugin.previewFeatures.length > 0 ? plugin.previewFeatures[0] : null
+                property var referenceFeature: plugin.schemaFeature
 
                 FeatureModel {
 
@@ -3416,8 +3478,10 @@ Item {
 
                 FeatureModel {
                     id: referenceFeatureModel
-                    currentLayer: plugin.selectedLayer
+                    project: qgisProject
+                    currentLayer: plugin.schemaLayer
                     feature: schemaCollector.referenceFeature
+                    modelMode: FeatureModel.SingleFeatureModel
                 }
 
                 AttributeFormModel {
@@ -3432,7 +3496,9 @@ Item {
                     visible: false
 
                     Repeater {
-                        model: projectAttributeFormModel
+                        model: plugin.schemaCollectorEnabled
+                               ? projectAttributeFormModel
+                               : null
 
                         delegate: Item {
                             width: 1
@@ -3470,7 +3536,9 @@ Item {
                     anchors.left: parent.left
                     anchors.top: parent.top
                     Repeater {
-                        model: referenceFeatureModel
+                        model: plugin.schemaCollectorEnabled
+                               ? referenceFeatureModel
+                               : null
                         delegate: Item {
                             width: 1
                             height: 1
@@ -3793,7 +3861,7 @@ Item {
                 }
             }
 
-            // v0.8.15 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.8.16 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
