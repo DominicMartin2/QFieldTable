@@ -28,7 +28,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.9.3 — sélection et modification en lot.
+    // v0.9.4 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -39,7 +39,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.9.3 — source ValueRelation complète.
+    // v0.9.4 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -58,7 +58,7 @@ Item {
     // Si ce champ n'existe pas dans la couche, le plugin utilise featureId.
     property string batchJournalEntityIdField: "id_unique_inv"
 
-    // v0.9.3 — le FeatureModel de schéma est détaché/rattaché
+    // v0.9.4 — le FeatureModel de schéma est détaché/rattaché
     // explicitement lors d'un changement de couche.
     property var schemaLayer: null
     property var schemaFeature: null
@@ -80,7 +80,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.9.3 : cache des libellés ValueRelation / ValueMap.
+    // v0.9.4 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -182,12 +182,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.9.3 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.9.4 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.9.3 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.9.4 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -312,7 +312,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.9.3 iterator: " + error)
+            console.log("QField Table v0.9.4 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -355,7 +355,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.9.3 filtered iterator: " + error)
+            console.log("QField Table v0.9.4 filtered iterator: " + error)
         }
         updateLoadStatus()
 
@@ -482,7 +482,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.9.3 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.9.4 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -541,7 +541,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.9.3 : ne parcourt plus toutes les cellules au chargement.
+        // v0.9.4 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -598,7 +598,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.9.3 configuration invalide: " + e)
+            console.log("QField Table v0.9.4 configuration invalide: " + e)
             return ({})
         }
     }
@@ -622,7 +622,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.9.3 lecture propriété couche: " + e)
+            console.log("QField Table v0.9.4 lecture propriété couche: " + e)
         }
         return null
     }
@@ -654,7 +654,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.9.3 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.9.4 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1695,7 +1695,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.9.3 — diagnostic projet")
+        lines.push("QField Table v0.9.4 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -2147,7 +2147,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.9.3 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.9.4 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2178,7 +2178,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.9.3 direct layer lookup: " + e0)
+                console.log("QField Table v0.9.4 direct layer lookup: " + e0)
             }
         }
 
@@ -2430,7 +2430,7 @@ Item {
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.9.3 relation iterator: " + e
+                "QField Table v0.9.4 relation iterator: " + e
             )
         } finally {
             try {
@@ -2590,6 +2590,8 @@ Item {
                 var f = iterator.next()
 
                 entries.push({
+                    "uuid": journalFeatureAttribute(f, "journal_uuid"),
+                    "user": journalFeatureAttribute(f, "utilisateur"),
                     "timestamp": journalFeatureAttribute(f, "date_heure"),
                     "layer": journalFeatureAttribute(f, "couche"),
                     "featureId": journalFeatureAttribute(f, "id_entite"),
@@ -2636,7 +2638,8 @@ Item {
         try {
             var f = FeatureUtils.createFeature(batchJournalLayer)
 
-            var values = {
+            // Champs historiques obligatoires (structure v0.9.2).
+            var requiredValues = {
                 "date_heure": String(entry.timestamp || ""),
                 "couche": String(entry.layer || ""),
                 "id_entite": String(entry.featureId || ""),
@@ -2651,14 +2654,19 @@ Item {
                 "note": String(entry.note || "")
             }
 
-            for (var fieldName in values) {
-                if (!f.setAttribute(fieldName, values[fieldName])) {
+            for (var fieldName in requiredValues) {
+                if (!f.setAttribute(fieldName, requiredValues[fieldName])) {
                     batchJournalPersistenceError =
                         qsTr("Le champ « %1 » est absent de qfield_table_journal.")
                         .arg(fieldName)
                     return false
                 }
             }
+
+            // v0.9.4 : champs optionnels. Un ancien journal continue de
+            // fonctionner, mais le script de migration active ces données.
+            try { f.setAttribute("journal_uuid", String(entry.uuid || "")) } catch (uuidError) {}
+            try { f.setAttribute("utilisateur", String(entry.user || "")) } catch (userError) {}
 
             journalSaveModel.currentLayer = batchJournalLayer
             journalSaveModel.feature = f
@@ -2681,6 +2689,7 @@ Item {
             return false
         }
     }
+
 
     function projectFilePathForJournal() {
         var p = ""
@@ -2824,6 +2833,35 @@ Item {
         return ""
     }
 
+    function journalUuid() {
+        // UUID v4 généré localement : chaque appareil peut créer des lignes
+        // hors ligne sans dépendre du fid auto-incrémenté.
+        var template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+        return template.replace(/[xy]/g, function(c) {
+            var r = Math.floor(Math.random() * 16)
+            var v = c === 'x' ? r : ((r & 0x3) | 0x8)
+            return v.toString(16)
+        })
+    }
+
+    function journalCloudUser() {
+        try {
+            displayExpressionEvaluator.project = qgisProject
+            displayExpressionEvaluator.layer = selectedLayer
+            displayExpressionEvaluator.expressionText =
+                    "coalesce(@cloud_username, @cloud_useremail, '')"
+
+            var value = displayExpressionEvaluator.evaluate()
+            if (value !== undefined && value !== null &&
+                    String(value).trim().length > 0)
+                return String(value).trim()
+        } catch (e) {
+            console.log('QField Table v0.9.4 cloud user: ' + e)
+        }
+
+        return qsTr('Utilisateur local')
+    }
+
     function journalTimestamp() {
         return Qt.formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss")
     }
@@ -2833,6 +2871,8 @@ Item {
         var isMulti = fieldLooksMultiple(batchFieldColumn)
 
         var entry = {
+            "uuid": journalUuid(),
+            "user": journalCloudUser(),
             "timestamp": journalTimestamp(),
             "layer": layerName(selectedLayer),
             "featureId": journalEntityIdentifier(row),
@@ -2869,12 +2909,12 @@ Item {
 
     function batchJournalText() {
         var lines = []
-        lines.push("Date/heure\tCouche\tEntité\tChamp\tOpération\tAvant (affiché)\tAprès (affiché)\tAvant (brut)\tAprès (brut)\tStatut\tNote")
+        lines.push("UUID\tUtilisateur\tDate/heure\tCouche\tEntité\tChamp\tOpération\tAvant (affiché)\tAprès (affiché)\tAvant (brut)\tAprès (brut)\tStatut\tNote")
         for (var i = 0; i < batchJournal.length; ++i) {
             var e = batchJournal[i]
             function clean(v) { return String(v === undefined || v === null ? "" : v).replace(/\t/g, " ").replace(/\r?\n/g, " ") }
             lines.push([
-                clean(e.timestamp), clean(e.layer), clean(e.featureId),
+                clean(e.uuid), clean(e.user), clean(e.timestamp), clean(e.layer), clean(e.featureId),
                 clean(e.fieldLabel), clean(e.operation),
                 clean(e.oldDisplay), clean(e.newDisplay),
                 clean(e.oldRaw), clean(e.newRaw),
@@ -2889,11 +2929,11 @@ Item {
             var s = String(v === undefined || v === null ? "" : v)
             return "\"" + s.replace(/"/g, "\"\"") + "\""
         }
-        var rows = [["Date/heure","Couche","Entité","Champ","Opération",
+        var rows = [["UUID","Utilisateur","Date/heure","Couche","Entité","Champ","Opération",
                      "Avant affiché","Après affiché","Avant brut","Après brut","Statut","Note"]]
         for (var i=0; i<batchJournal.length; ++i) {
             var e=batchJournal[i]
-            rows.push([e.timestamp,e.layer,e.featureId,e.fieldLabel,e.operation,
+            rows.push([e.uuid||"",e.user||"",e.timestamp,e.layer,e.featureId,e.fieldLabel,e.operation,
                        e.oldDisplay,e.newDisplay,e.oldRaw,e.newRaw,
                        e.success ? "OK" : "ERREUR",e.note])
         }
@@ -3080,7 +3120,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.9.3 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.9.4 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -3095,7 +3135,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.9.3 : la construction initiale ne lit plus chaque attribut de
+        // v0.9.4 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -3421,7 +3461,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.9.3 zoom: " + zoomError)
+            console.log("QField Table v0.9.4 zoom: " + zoomError)
             return false
         }
     }
@@ -3515,7 +3555,7 @@ Item {
                 console.log("QField Table — journal non chargé : " + batchJournalPersistenceError)
         })
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.9.3 chargé")
+        console.log("QField Table v0.9.4 chargé")
     }
 
     Connections {
@@ -3628,7 +3668,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.9.3")
+        title: qsTr("QField Table — v0.9.4")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -4220,7 +4260,7 @@ Item {
                 }
             }
 
-            // v0.9.3 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.9.4 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -4775,8 +4815,10 @@ Item {
                             Label {
                                 width: parent.width
                                 font.bold: true
-                                text: modelData.timestamp + " — " + modelData.featureId +
-                                      " — " + modelData.fieldLabel +
+                                text: modelData.timestamp + " — " +
+                                      (modelData.user && String(modelData.user).length > 0
+                                       ? modelData.user + " — " : "") +
+                                      modelData.featureId + " — " + modelData.fieldLabel +
                                       " — " + (modelData.success ? qsTr("OK") : qsTr("ÉCHEC"))
                             }
                             Label {

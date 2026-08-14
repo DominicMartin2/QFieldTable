@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.9.3
-description=QField Table v0.9.3 : journal utilisant une clé métier configurable pour identifier les entités.
+version=0.9.4
+description=QField Table v0.9.4 : journal multi-utilisateur avec UUID et utilisateur QFieldCloud.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
