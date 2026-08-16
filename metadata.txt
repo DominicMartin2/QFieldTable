@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.9.4
-description=QField Table v0.9.4 : journal multi-utilisateur avec UUID et utilisateur QFieldCloud.
+version=0.9.5
+description=QField Table v0.9.5 : prise en charge des listes de valeurs (ValueMap) en modification en lot.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
