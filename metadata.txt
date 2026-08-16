@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.9.6
-description=QField Table v0.9.6 : prise en charge des ValueRelation uniques et multiples en modification en lot.
+version=0.10.0
+description=QField Table v0.10.0 : ouverture directe du formulaire natif complet de QField depuis la table.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
