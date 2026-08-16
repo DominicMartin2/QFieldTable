@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.1
-description=QField Table v0.10.1 : formulaire natif en édition, zoom direct et commandes explicites Enregistrer/Annuler.
+version=0.10.2
+description=QField Table v0.10.2 DIAGNOSTIC : inspection du drawer/formulaire natif et test du zoom via iface.setMapExtent.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
