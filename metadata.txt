@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.4
-description=QField Table v0.10.4 : zoom fiable sur l'entité et verrouillage de la carte pendant l'édition.
+version=0.10.5
+description=QField Table v0.10.5 : restauration du zoom éprouvé et boutons d'édition en haut du formulaire.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
