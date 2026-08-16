@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.0
-description=QField Table v0.10.0 : ouverture directe du formulaire natif complet de QField depuis la table.
+version=0.10.1
+description=QField Table v0.10.1 : formulaire natif en édition, zoom direct et commandes explicites Enregistrer/Annuler.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
