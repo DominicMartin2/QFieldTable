@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.3
-description=QField Table v0.10.3 : zoom fiable et barre Enregistrer/Annuler intégrée au popup natif du formulaire.
+version=0.10.4
+description=QField Table v0.10.4 : zoom fiable sur l'entité et verrouillage de la carte pendant l'édition.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

@@ -34,7 +34,7 @@ Item {
     property string preFilterText: ""
     property bool refreshAfterNativeEdit: false
     property string pendingZoomFeatureId: ""
-    // v0.10.3 — sélection et modification en lot.
+    // v0.10.4 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -49,7 +49,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.10.3 — source ValueRelation complète.
+    // v0.10.4 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -68,7 +68,7 @@ Item {
     // Si ce champ n'existe pas dans la couche, le plugin utilise featureId.
     property string batchJournalEntityIdField: "id_unique_inv"
 
-    // v0.10.3 — le FeatureModel de schéma est détaché/rattaché
+    // v0.10.4 — le FeatureModel de schéma est détaché/rattaché
     // explicitement lors d'un changement de couche.
     property var schemaLayer: null
     property var schemaFeature: null
@@ -90,7 +90,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.10.3 : cache des libellés ValueRelation / ValueMap.
+    // v0.10.4 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -192,12 +192,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.10.3 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.10.4 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.10.3 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.10.4 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -322,7 +322,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.10.3 iterator: " + error)
+            console.log("QField Table v0.10.4 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -365,7 +365,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.10.3 filtered iterator: " + error)
+            console.log("QField Table v0.10.4 filtered iterator: " + error)
         }
         updateLoadStatus()
 
@@ -492,7 +492,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.10.3 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.10.4 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -551,7 +551,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.10.3 : ne parcourt plus toutes les cellules au chargement.
+        // v0.10.4 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -608,7 +608,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.10.3 configuration invalide: " + e)
+            console.log("QField Table v0.10.4 configuration invalide: " + e)
             return ({})
         }
     }
@@ -632,7 +632,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.10.3 lecture propriété couche: " + e)
+            console.log("QField Table v0.10.4 lecture propriété couche: " + e)
         }
         return null
     }
@@ -664,7 +664,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.10.3 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.10.4 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1804,7 +1804,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.10.3 — diagnostic projet")
+        lines.push("QField Table v0.10.4 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -1890,7 +1890,7 @@ Item {
 
         var beforeCount = Object.keys(projectWidgetConfigs).length
 
-        // v0.10.3: ValueMap / Liste de valeurs is stored in the project too.
+        // v0.10.4: ValueMap / Liste de valeurs is stored in the project too.
         parseValueMapsStandard(xml)
 
         // Strategy 1: normal QGIS fieldConfiguration nesting.
@@ -2273,7 +2273,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.10.3 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.10.4 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2304,7 +2304,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.10.3 direct layer lookup: " + e0)
+                console.log("QField Table v0.10.4 direct layer lookup: " + e0)
             }
         }
 
@@ -2556,7 +2556,7 @@ Item {
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.10.3 relation iterator: " + e
+                "QField Table v0.10.4 relation iterator: " + e
             )
         } finally {
             try {
@@ -2789,7 +2789,7 @@ Item {
                 }
             }
 
-            // v0.10.3 : champs optionnels. Un ancien journal continue de
+            // v0.10.4 : champs optionnels. Un ancien journal continue de
             // fonctionner, mais le script de migration active ces données.
             try { f.setAttribute("journal_uuid", String(entry.uuid || "")) } catch (uuidError) {}
             try { f.setAttribute("utilisateur", String(entry.user || "")) } catch (userError) {}
@@ -2982,7 +2982,7 @@ Item {
                     String(value).trim().length > 0)
                 return String(value).trim()
         } catch (e) {
-            console.log('QField Table v0.10.3 cloud user: ' + e)
+            console.log('QField Table v0.10.4 cloud user: ' + e)
         }
 
         return qsTr('Utilisateur local')
@@ -3267,7 +3267,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.10.3 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.10.4 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -3282,7 +3282,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.10.3 : la construction initiale ne lit plus chaque attribut de
+        // v0.10.4 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -3608,7 +3608,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.10.3 zoom: " + zoomError)
+            console.log("QField Table v0.10.4 zoom: " + zoomError)
             return false
         }
     }
@@ -3648,7 +3648,7 @@ Item {
         try {
             LayerUtils.selectFeaturesInLayer(selectedLayer, [numericId])
         } catch (selectionError) {
-            console.log("QField Table v0.10.3 sélection : " + selectionError)
+            console.log("QField Table v0.10.4 sélection : " + selectionError)
         }
 
         pendingZoomFeatureId = idText
@@ -3667,11 +3667,12 @@ Item {
     function zoomNativeToFeature(feature) {
         try {
             var canvas = iface.mapCanvas()
+
             if (!canvas || !canvas.mapSettings || !selectedLayer || !feature)
                 return false
 
-            // API officielle QField : calcule une emprise adaptée à l'entité,
-            // en tenant compte du CRS et du cas particulier des points.
+            // FeatureUtils.extent() gère le CRS de la couche et fournit une
+            // emprise adaptée, y compris pour une entité ponctuelle.
             var extent = FeatureUtils.extent(
                         canvas.mapSettings,
                         selectedLayer,
@@ -3681,14 +3682,27 @@ Item {
             if (!extent)
                 return false
 
-            // Demander à QField lui-même de modifier l'emprise.
-            iface.setMapExtent(extent)
+            // Méthode QML documentée par QField : affectation directe de
+            // l'emprise aux MapSettings du canevas.
+            canvas.mapSettings.extent = extent
+
             return true
 
         } catch (zoomError) {
-            console.log("QField Table v0.10.3 zoom : " + zoomError)
+            console.log("QField Table v0.10.4 zoom : " + zoomError)
             return false
         }
+    }
+
+    function zoomNativeToFeatureDeferred(feature) {
+        // Le drawer réduit la largeur utile de la carte. Deux passages dans
+        // la boucle d'événements laissent QField terminer cette mise en page
+        // avant de fixer l'emprise.
+        Qt.callLater(function() {
+            Qt.callLater(function() {
+                plugin.zoomNativeToFeature(feature)
+            })
+        })
     }
 
 
@@ -3726,7 +3740,10 @@ Item {
             Qt.callLater(function() {
                 try { drawer.featureForm.toolbarVisible = true } catch(toolbarError) {}
 
-                plugin.zoomNativeToFeature(feature)
+                // Verrouiller immédiatement la carte, puis effectuer le zoom
+                // lorsque le drawer a fini de redimensionner le canevas.
+                nativeMapBlocker.visible = true
+                plugin.zoomNativeToFeatureDeferred(feature)
 
                 // Notre barre est un enfant du QQuickPopupItem du formulaire,
                 // donc elle apparaît réellement au-dessus du formulaire natif.
@@ -3739,7 +3756,7 @@ Item {
             diagnosticMessage =
                     qsTr("Impossible d’ouvrir le formulaire natif : %1")
                     .arg(String(formError))
-            console.log("QField Table v0.10.3 formulaire natif : " + formError)
+            console.log("QField Table v0.10.4 formulaire natif : " + formError)
             try { mainWindow.displayToast(diagnosticMessage) } catch (toastError2) {}
             return false
         }
@@ -3758,6 +3775,7 @@ Item {
 
             if (ok) {
                 nativeEditBar.visible = false
+                nativeMapBlocker.visible = false
                 refreshAfterNativeEdit = true
 
                 try { drawer.close() } catch (closeError) {}
@@ -3779,7 +3797,7 @@ Item {
             }
 
         } catch (saveError) {
-            console.log("QField Table v0.10.3 sauvegarde : " + saveError)
+            console.log("QField Table v0.10.4 sauvegarde : " + saveError)
             try {
                 mainWindow.displayToast(
                     qsTr("Erreur pendant la sauvegarde : %1")
@@ -3792,6 +3810,7 @@ Item {
     function cancelNativeFeatureForm() {
         var drawer = overlayFeatureFormDrawer
         nativeEditBar.visible = false
+        nativeMapBlocker.visible = false
 
         if (!drawer)
             return
@@ -3802,7 +3821,7 @@ Item {
             else
                 drawer.close()
         } catch (cancelError) {
-            console.log("QField Table v0.10.3 annulation : " + cancelError)
+            console.log("QField Table v0.10.4 annulation : " + cancelError)
             try { drawer.close() } catch (closeError) {}
         }
     }
@@ -3834,7 +3853,7 @@ Item {
         var m = d ? d.featureModel : null
         var am = f ? f.model : null
 
-        var text = "QField Table v0.10.3 — diagnostic formulaire natif\n\n"
+        var text = "QField Table v0.10.4 — diagnostic formulaire natif\n\n"
         text += qmlObjectSummary(d, "OverlayFeatureFormDrawer")
         text += "\n" + qmlObjectSummary(f, "FeatureForm")
         text += "\n" + qmlObjectSummary(m, "FeatureModel")
@@ -3918,7 +3937,31 @@ Item {
                 console.log("QField Table — journal non chargé : " + batchJournalPersistenceError)
         })
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.10.3 chargé")
+        console.log("QField Table v0.10.4 chargé")
+    }
+
+    // Verrouille le canevas pendant l'édition. Le FeatureForm natif est
+    // affiché dans un QQuickPopupItem, donc il demeure au-dessus de ce bloqueur.
+    // La molette utilisée sur le formulaire continue ainsi à faire défiler
+    // le formulaire, tandis que la carte ne zoome plus.
+    MouseArea {
+        id: nativeMapBlocker
+        parent: plugin.mainWindow ? plugin.mainWindow.contentItem : plugin
+        anchors.fill: parent
+        visible: false
+        z: 999998
+
+        acceptedButtons: Qt.AllButtons
+        hoverEnabled: true
+        preventStealing: true
+        propagateComposedEvents: false
+
+        onPressed: function(mouse) { mouse.accepted = true }
+        onReleased: function(mouse) { mouse.accepted = true }
+        onClicked: function(mouse) { mouse.accepted = true }
+        onDoubleClicked: function(mouse) { mouse.accepted = true }
+        onPositionChanged: function(mouse) { mouse.accepted = true }
+        onWheel: function(wheel) { wheel.accepted = true }
     }
 
     // Barre de secours explicite : elle est placée au niveau de la fenêtre
@@ -4046,6 +4089,7 @@ Item {
 
         function onClosed() {
             plugin.nativeEditBar.visible = false
+            plugin.nativeMapBlocker.visible = false
             if (plugin.refreshAfterNativeEdit && plugin.selectedLayer)
                 Qt.callLater(function() { plugin.reloadFeaturesOnly() })
         }
@@ -4104,7 +4148,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.10.3")
+        title: qsTr("QField Table — v0.10.4")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -4696,7 +4740,7 @@ Item {
                 }
             }
 
-            // v0.10.3 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.10.4 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
