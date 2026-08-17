@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.9
-description=QField Table v0.10.9 : correction du centre d'emprise pour le zoom natif MapCanvas.jumpTo.
+version=0.11.0
+description=QField Table v0.11.0 : autosauvegarde intégrée du formulaire natif avec délai et validation des contraintes.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
