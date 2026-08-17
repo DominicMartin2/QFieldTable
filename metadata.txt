@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.1
-description=QField Table v0.12.1 : vues partagées synchronisables en GeoPackage avec titre, consignes et statut.
+version=0.12.2
+description=QField Table v0.12.2 : rechargement robuste des vues partagées avec sélection automatique de la couche cible.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
