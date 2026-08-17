@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.11.1
-description=QField Table v0.11.1 : autosauvegarde activable/désactivable et délai configurable par utilisateur.
+version=0.12.1
+description=QField Table v0.12.1 : vues partagées synchronisables en GeoPackage avec titre, consignes et statut.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

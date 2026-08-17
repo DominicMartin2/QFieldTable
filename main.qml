@@ -36,12 +36,12 @@ Item {
     property string pendingZoomFeatureId: ""
     property var pendingNativeEditFeature: null
     property bool nativePreviousMapInteractive: true
-    // v0.11.1 — Autosauvegarde du formulaire ouvert par QField Table.
+    // v0.12.1 — Autosauvegarde du formulaire ouvert par QField Table.
     property bool nativeEditSessionActive: false
     property bool nativeAutosaveEnabled: true
     property int nativeAutosaveDelay: 2000
     property string nativeAutosaveSettingsPath: ""
-    // v0.11.1 — sélection et modification en lot.
+    // v0.12.1 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -56,7 +56,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.11.1 — source ValueRelation complète.
+    // v0.12.1 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -75,7 +75,7 @@ Item {
     // Si ce champ n'existe pas dans la couche, le plugin utilise featureId.
     property string batchJournalEntityIdField: "id_unique_inv"
 
-    // v0.11.1 — le FeatureModel de schéma est détaché/rattaché
+    // v0.12.1 — le FeatureModel de schéma est détaché/rattaché
     // explicitement lors d'un changement de couche.
     property var schemaLayer: null
     property var schemaFeature: null
@@ -97,7 +97,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.11.1 : cache des libellés ValueRelation / ValueMap.
+    // v0.12.1 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -120,6 +120,10 @@ Item {
     property int resizingColumnIndex: -1
     property real resizingColumnWidth: -1
     property string sharedViewCode: ""
+    // v0.12.1 — vues partagées synchronisées via une table du GeoPackage.
+    property string sharedViewsLayerName: "qfield_table_vues"
+    property var sharedViewsLayer: null
+    property string sharedViewsError: ""
     property string distinctSearchText: ""
     property string selectedCellAlias: ""
     property string selectedCellFieldName: ""
@@ -175,7 +179,7 @@ Item {
 
         // Table technique interne du plugin : ne pas la proposer comme
         // couche de travail dans QField Table.
-        if (name === batchJournalLayerName)
+        if (name === batchJournalLayerName || name === sharedViewsLayerName)
             return
         if (!id) id = name + "_" + vectorLayers.length
         if (seen[id]) return
@@ -199,12 +203,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.11.1 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.12.1 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.11.1 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.12.1 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -329,7 +333,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.11.1 iterator: " + error)
+            console.log("QField Table v0.12.1 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -372,7 +376,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.11.1 filtered iterator: " + error)
+            console.log("QField Table v0.12.1 filtered iterator: " + error)
         }
         updateLoadStatus()
 
@@ -499,7 +503,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.11.1 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.12.1 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -558,7 +562,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.11.1 : ne parcourt plus toutes les cellules au chargement.
+        // v0.12.1 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -615,7 +619,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.11.1 configuration invalide: " + e)
+            console.log("QField Table v0.12.1 configuration invalide: " + e)
             return ({})
         }
     }
@@ -639,7 +643,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.11.1 lecture propriété couche: " + e)
+            console.log("QField Table v0.12.1 lecture propriété couche: " + e)
         }
         return null
     }
@@ -671,7 +675,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.11.1 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.12.1 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1191,6 +1195,295 @@ Item {
         applyView()
     }
 
+    function currentSharedViewObject() {
+        var fs = []
+
+        for (var k in activeColumnFilters) {
+            var idx = Number(k)
+            var f = activeColumnFilters[k]
+            var vals = []
+
+            if (f.selected) {
+                for (var v in f.selected)
+                    if (f.selected[v] === true)
+                        vals.push(v)
+            }
+
+            fs.push({
+                "field": columns[idx].fieldName,
+                "mode": f.mode,
+                "text": f.text || "",
+                "values": vals
+            })
+        }
+
+        var vis = []
+
+        for (var p = 0; p < columnOrder.length; ++p) {
+            var ci = Number(columnOrder[p])
+
+            if (columns[ci] &&
+                !columns[ci].technicalHidden &&
+                columnVisibility[String(ci)] !== false)
+                vis.push(columns[ci].fieldName)
+        }
+
+        return {
+            "format": "QFieldTableView",
+            "version": 2,
+            "layer": layerName(selectedLayer),
+            "filters": fs,
+            "visibleColumns": vis
+        }
+    }
+
+    function findSharedViewsLayer() {
+        var layers = []
+
+        try {
+            var projectLayers = ProjectUtils.mapLayers(qgisProject)
+
+            if (projectLayers) {
+                for (var key in projectLayers)
+                    layers.push(projectLayers[key])
+            }
+        } catch (e) {
+            console.log("QField Table v0.12.1 recherche qfield_table_vues : " + e)
+        }
+
+        for (var i = 0; i < layers.length; ++i) {
+            if (layerName(layers[i]) === sharedViewsLayerName)
+                return layers[i]
+        }
+
+        return null
+    }
+
+    function sharedViewAttribute(feature, fieldName) {
+        if (!feature)
+            return ""
+
+        try {
+            var value = feature.attribute(fieldName)
+            return value === undefined || value === null ? "" : String(value)
+        } catch (e) {
+            return ""
+        }
+    }
+
+    function loadSharedViews() {
+        sharedViewsError = ""
+        sharedViewsLayer = findSharedViewsLayer()
+        sharedViewsListModel.clear()
+
+        if (!sharedViewsLayer) {
+            sharedViewsError =
+                qsTr("La table « qfield_table_vues » n’est pas chargée dans le projet.")
+            return false
+        }
+
+        var iterator = null
+
+        try {
+            iterator = LayerUtils.createFeatureIterator(sharedViewsLayer)
+
+            while (iterator && iterator.hasNext()) {
+                var feature = iterator.next()
+                var title = sharedViewAttribute(feature, "titre")
+                var layerTitle = sharedViewAttribute(feature, "couche")
+                var status = sharedViewAttribute(feature, "statut")
+                var author = sharedViewAttribute(feature, "auteur")
+                var updated = sharedViewAttribute(feature, "date_modification")
+                var created = sharedViewAttribute(feature, "date_creation")
+
+                sharedViewsListModel.append({
+                    "featureId": String(feature.id),
+                    "uuid": sharedViewAttribute(feature, "vue_uuid"),
+                    "title": title,
+                    "label": (title.length > 0 ? title : qsTr("Vue sans titre")) +
+                             " — " +
+                             (status.length > 0 ? status : qsTr("À faire")),
+                    "message": sharedViewAttribute(feature, "message"),
+                    "layerName": layerTitle,
+                    "viewJson": sharedViewAttribute(feature, "vue_json"),
+                    "status": status.length > 0 ? status : "À faire",
+                    "author": author,
+                    "dateText": updated.length > 0 ? updated : created
+                })
+            }
+
+            return true
+
+        } catch (e) {
+            sharedViewsError =
+                qsTr("Lecture de qfield_table_vues impossible : %1")
+                .arg(String(e))
+            return false
+
+        } finally {
+            try {
+                if (iterator)
+                    iterator.close()
+            } catch (closeError) {}
+        }
+    }
+
+    function createSharedView(title, message, status) {
+        title = String(title || "").trim()
+
+        if (title.length === 0) {
+            sharedViewsError = qsTr("Donnez un titre à la vue.")
+            return false
+        }
+
+        sharedViewsLayer = findSharedViewsLayer()
+
+        if (!sharedViewsLayer) {
+            sharedViewsError =
+                qsTr("La table « qfield_table_vues » n’est pas chargée dans le projet.")
+            return false
+        }
+
+        try {
+            var feature = FeatureUtils.createFeature(sharedViewsLayer)
+            var now = journalTimestamp()
+
+            feature.setAttribute("vue_uuid", journalUuid())
+            feature.setAttribute("date_creation", now)
+            feature.setAttribute("date_modification", now)
+            feature.setAttribute("auteur", journalCloudUser())
+            feature.setAttribute("titre", title)
+            feature.setAttribute("message", String(message || ""))
+            feature.setAttribute("couche", layerName(selectedLayer))
+            feature.setAttribute(
+                "vue_json",
+                JSON.stringify(currentSharedViewObject())
+            )
+            feature.setAttribute("statut", String(status || "À faire"))
+
+            sharedViewSaveModel.currentLayer = sharedViewsLayer
+            sharedViewSaveModel.feature = feature
+            sharedViewSaveModel.updateAttributesFromFeature(feature)
+
+            if (!sharedViewSaveModel.create(true)) {
+                sharedViewsError =
+                    qsTr("QField n’a pas pu créer la vue partagée.")
+                return false
+            }
+
+            loadSharedViews()
+            return true
+
+        } catch (e) {
+            sharedViewsError =
+                qsTr("Création de la vue impossible : %1").arg(String(e))
+            return false
+        }
+    }
+
+    function selectedSharedView() {
+        if (sharedViewsCombo.currentIndex < 0 ||
+            sharedViewsCombo.currentIndex >= sharedViewsListModel.count)
+            return null
+
+        return sharedViewsListModel.get(sharedViewsCombo.currentIndex)
+    }
+
+    function applySelectedSharedView() {
+        var item = selectedSharedView()
+
+        if (!item)
+            return false
+
+        if (String(item.layerName || "") !== layerName(selectedLayer)) {
+            sharedViewsError =
+                qsTr("Cette vue concerne la couche « %1 ». Sélectionnez d’abord cette couche.")
+                .arg(String(item.layerName || ""))
+            return false
+        }
+
+        if (importSharedViewCode(String(item.viewJson || ""))) {
+            try {
+                mainWindow.displayToast(
+                    qsTr("Vue « %1 » appliquée.").arg(item.title)
+                )
+            } catch (e) {}
+
+            return true
+        }
+
+        return false
+    }
+
+    function findSharedViewFeature(featureIdText) {
+        if (!sharedViewsLayer)
+            return null
+
+        var iterator = null
+
+        try {
+            iterator = LayerUtils.createFeatureIterator(sharedViewsLayer)
+
+            while (iterator && iterator.hasNext()) {
+                var feature = iterator.next()
+
+                if (String(feature.id) === String(featureIdText))
+                    return feature
+            }
+        } catch (e) {
+            sharedViewsError = String(e)
+        } finally {
+            try {
+                if (iterator)
+                    iterator.close()
+            } catch (closeError) {}
+        }
+
+        return null
+    }
+
+    function updateSelectedSharedViewStatus(status) {
+        var item = selectedSharedView()
+
+        if (!item)
+            return false
+
+        sharedViewsLayer = findSharedViewsLayer()
+
+        if (!sharedViewsLayer)
+            return false
+
+        try {
+            var feature = findSharedViewFeature(item.featureId)
+
+            if (!feature) {
+                sharedViewsError =
+                    qsTr("La vue sélectionnée n’a pas été retrouvée.")
+                return false
+            }
+
+            feature.setAttribute("statut", String(status || "À faire"))
+            feature.setAttribute("date_modification", journalTimestamp())
+
+            sharedViewSaveModel.currentLayer = sharedViewsLayer
+            sharedViewSaveModel.feature = feature
+            sharedViewSaveModel.updateAttributesFromFeature(feature)
+
+            if (!sharedViewSaveModel.save(true)) {
+                sharedViewsError =
+                    qsTr("Le statut n’a pas pu être enregistré.")
+                return false
+            }
+
+            loadSharedViews()
+            return true
+
+        } catch (e) {
+            sharedViewsError = String(e)
+            return false
+        }
+    }
+
     function makeSharedViewCode() {
         var fs=[]
         for (var k in activeColumnFilters) {
@@ -1204,14 +1497,7 @@ Item {
             if (columns[ci] && !columns[ci].technicalHidden && columnVisibility[String(ci)]!==false)
                 vis.push(columns[ci].fieldName)
         }
-        sharedViewCode=JSON.stringify({
-                                      "format":"QFieldTableView",
-                                      "version":2,
-                                      "layer":layerName(selectedLayer),
-                                      "filters":fs,
-                                      // The array order is the display order.
-                                      "visibleColumns":vis
-                                  },null,2)
+        sharedViewCode=JSON.stringify(currentSharedViewObject(),null,2)
         shareText.text=sharedViewCode
         shareDialog.open()
     }
@@ -1811,7 +2097,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.11.1 — diagnostic projet")
+        lines.push("QField Table v0.12.1 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -1897,7 +2183,7 @@ Item {
 
         var beforeCount = Object.keys(projectWidgetConfigs).length
 
-        // v0.11.1: ValueMap / Liste de valeurs is stored in the project too.
+        // v0.12.1: ValueMap / Liste de valeurs is stored in the project too.
         parseValueMapsStandard(xml)
 
         // Strategy 1: normal QGIS fieldConfiguration nesting.
@@ -2280,7 +2566,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.11.1 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.12.1 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2311,7 +2597,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.11.1 direct layer lookup: " + e0)
+                console.log("QField Table v0.12.1 direct layer lookup: " + e0)
             }
         }
 
@@ -2563,7 +2849,7 @@ Item {
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.11.1 relation iterator: " + e
+                "QField Table v0.12.1 relation iterator: " + e
             )
         } finally {
             try {
@@ -2796,7 +3082,7 @@ Item {
                 }
             }
 
-            // v0.11.1 : champs optionnels. Un ancien journal continue de
+            // v0.12.1 : champs optionnels. Un ancien journal continue de
             // fonctionner, mais le script de migration active ces données.
             try { f.setAttribute("journal_uuid", String(entry.uuid || "")) } catch (uuidError) {}
             try { f.setAttribute("utilisateur", String(entry.user || "")) } catch (userError) {}
@@ -2989,7 +3275,7 @@ Item {
                     String(value).trim().length > 0)
                 return String(value).trim()
         } catch (e) {
-            console.log('QField Table v0.11.1 cloud user: ' + e)
+            console.log('QField Table v0.12.1 cloud user: ' + e)
         }
 
         return qsTr('Utilisateur local')
@@ -3274,7 +3560,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.11.1 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.12.1 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -3289,7 +3575,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.11.1 : la construction initiale ne lit plus chaque attribut de
+        // v0.12.1 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -3615,7 +3901,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.11.1 zoom: " + zoomError)
+            console.log("QField Table v0.12.1 zoom: " + zoomError)
             return false
         }
     }
@@ -3656,7 +3942,7 @@ Item {
         try {
             LayerUtils.selectFeaturesInLayer(selectedLayer, [numericId])
         } catch (selectionError) {
-            console.log("QField Table v0.11.1 sélection : " + selectionError)
+            console.log("QField Table v0.12.1 sélection : " + selectionError)
         }
 
         refreshAfterNativeEdit = true
@@ -3705,7 +3991,7 @@ Item {
             })
 
         } catch (jumpError) {
-            console.log("QField Table v0.11.1 jumpTo : " + jumpError)
+            console.log("QField Table v0.12.1 jumpTo : " + jumpError)
 
             // Ne jamais empêcher l'édition si le zoom échoue.
             try {
@@ -3773,7 +4059,7 @@ Item {
             diagnosticMessage =
                     qsTr("Impossible d’ouvrir le formulaire natif : %1")
                     .arg(String(formError))
-            console.log("QField Table v0.11.1 formulaire natif : " + formError)
+            console.log("QField Table v0.12.1 formulaire natif : " + formError)
             try { mainWindow.displayToast(diagnosticMessage) } catch (toastError2) {}
             return false
         }
@@ -3828,7 +4114,7 @@ Item {
 
             return true
         } catch (e) {
-            console.log("QField Table v0.11.1 réglages autosave : " + e)
+            console.log("QField Table v0.12.1 réglages autosave : " + e)
             return false
         }
     }
@@ -3852,7 +4138,7 @@ Item {
                         nativeAutosaveSettingsPath,
                         JSON.stringify(payload, null, 2))
         } catch (e) {
-            console.log("QField Table v0.11.1 sauvegarde réglages : " + e)
+            console.log("QField Table v0.12.1 sauvegarde réglages : " + e)
             return false
         }
     }
@@ -3907,7 +4193,7 @@ Item {
 
         // La première sauvegarde d'une nouvelle entité doit rester manuelle.
         if (nativeFormIsNewEntity()) {
-            console.log("QField Table v0.11.1 Autosave : nouvelle entité ignorée")
+            console.log("QField Table v0.12.1 Autosave : nouvelle entité ignorée")
             return
         }
 
@@ -3921,11 +4207,11 @@ Item {
                 mainWindow.displayToast(
                     qsTr("Autosauvegarde impossible : remplissez les champs obligatoires."))
 
-                console.log("QField Table v0.11.1 Autosave : contrainte invalide")
+                console.log("QField Table v0.12.1 Autosave : contrainte invalide")
                 return
             }
         } catch (constraintError) {
-            console.log("QField Table v0.11.1 Autosave contraintes : " +
+            console.log("QField Table v0.12.1 Autosave contraintes : " +
                         constraintError)
         }
 
@@ -3941,13 +4227,13 @@ Item {
 
             if (ok) {
                 mainWindow.displayToast(qsTr("Enregistrement automatique"))
-                console.log("QField Table v0.11.1 Autosave : sauvegarde réussie")
+                console.log("QField Table v0.12.1 Autosave : sauvegarde réussie")
             } else {
-                console.log("QField Table v0.11.1 Autosave : sauvegarde refusée")
+                console.log("QField Table v0.12.1 Autosave : sauvegarde refusée")
             }
 
         } catch (saveError) {
-            console.log("QField Table v0.11.1 Autosave erreur : " + saveError)
+            console.log("QField Table v0.12.1 Autosave erreur : " + saveError)
         }
     }
 
@@ -3956,7 +4242,7 @@ Item {
             return
 
         nativeAutosaveTimer.restart()
-        console.log("QField Table v0.11.1 Autosave : modification détectée")
+        console.log("QField Table v0.12.1 Autosave : modification détectée")
     }
 
     function saveNativeFeatureForm() {
@@ -4002,7 +4288,7 @@ Item {
             }
 
         } catch (saveError) {
-            console.log("QField Table v0.11.1 sauvegarde : " + saveError)
+            console.log("QField Table v0.12.1 sauvegarde : " + saveError)
             try {
                 mainWindow.displayToast(
                     qsTr("Erreur pendant la sauvegarde : %1")
@@ -4032,7 +4318,7 @@ Item {
             else
                 drawer.close()
         } catch (cancelError) {
-            console.log("QField Table v0.11.1 annulation : " + cancelError)
+            console.log("QField Table v0.12.1 annulation : " + cancelError)
             try { drawer.close() } catch (closeError) {}
         }
     }
@@ -4064,7 +4350,7 @@ Item {
         var m = d ? d.featureModel : null
         var am = f ? f.model : null
 
-        var text = "QField Table v0.11.1 — diagnostic formulaire natif\n\n"
+        var text = "QField Table v0.12.1 — diagnostic formulaire natif\n\n"
         text += qmlObjectSummary(d, "OverlayFeatureFormDrawer")
         text += "\n" + qmlObjectSummary(f, "FeatureForm")
         text += "\n" + qmlObjectSummary(m, "FeatureModel")
@@ -4149,7 +4435,7 @@ Item {
                 console.log("QField Table — journal non chargé : " + batchJournalPersistenceError)
         })
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.11.1 chargé")
+        console.log("QField Table v0.12.1 chargé")
     }
 
     // Verrouille le canevas pendant l'édition. Le FeatureForm natif est
@@ -4377,6 +4663,7 @@ Item {
 
 
     ListModel { id: layerModel }
+    ListModel { id: sharedViewsListModel }
 
     QfToolButton {
         id: pluginButton
@@ -4473,7 +4760,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.11.1")
+        title: qsTr("QField Table — v0.12.1")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -4568,7 +4855,14 @@ Item {
                     onClicked: plugin.clearAllFilters()
                 }
                 Button {
-                    text: qsTr("Partager vue…")
+                    text: qsTr("Vues partagées…")
+                    onClicked: {
+                        plugin.loadSharedViews()
+                        sharedViewsDialog.open()
+                    }
+                }
+                Button {
+                    text: qsTr("Partager code…")
                     onClicked: plugin.makeSharedViewCode()
                 }
                 Button {
@@ -4630,6 +4924,13 @@ Item {
                     id: journalSaveModel
                     project: qgisProject
                     currentLayer: plugin.batchJournalLayer
+                    modelMode: FeatureModel.SingleFeatureModel
+                }
+
+                FeatureModel {
+                    id: sharedViewSaveModel
+                    project: qgisProject
+                    currentLayer: plugin.sharedViewsLayer
                     modelMode: FeatureModel.SingleFeatureModel
                 }
 
@@ -5069,7 +5370,7 @@ Item {
                 }
             }
 
-            // v0.11.1 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.12.1 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
@@ -6524,6 +6825,211 @@ Item {
         }
     }
 
+
+    Dialog {
+        id: saveSharedViewDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Enregistrer une vue partagée")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.min(640, parent.width * 0.90) : 640
+
+        onOpened: {
+            sharedViewTitleInput.text = ""
+            sharedViewMessageInput.text = ""
+            sharedViewInitialStatus.currentIndex = 0
+            plugin.sharedViewsError = ""
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                text: qsTr("Titre")
+                font.bold: true
+            }
+
+            TextField {
+                id: sharedViewTitleInput
+                Layout.fillWidth: true
+                placeholderText: qsTr("Ex. Vérifier les adresses incomplètes")
+            }
+
+            Label {
+                text: qsTr("Message / consignes")
+                font.bold: true
+            }
+
+            TextArea {
+                id: sharedViewMessageInput
+                Layout.fillWidth: true
+                Layout.preferredHeight: 120
+                wrapMode: TextEdit.Wrap
+                placeholderText:
+                    qsTr("Décrivez les vérifications ou modifications à effectuer.")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Label {
+                    text: qsTr("Statut initial")
+                    Layout.fillWidth: true
+                }
+
+                ComboBox {
+                    id: sharedViewInitialStatus
+                    model: ["À faire", "En cours", "Terminé", "Archivé"]
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.sharedViewsError.length > 0
+                text: plugin.sharedViewsError
+                color: Theme.errorColor
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: qsTr("Annuler")
+                    onClicked: saveSharedViewDialog.close()
+                }
+
+                Button {
+                    text: qsTr("Enregistrer")
+                    font.bold: true
+                    onClicked: {
+                        if (plugin.createSharedView(
+                                    sharedViewTitleInput.text,
+                                    sharedViewMessageInput.text,
+                                    sharedViewInitialStatus.currentText)) {
+                            saveSharedViewDialog.close()
+                            plugin.loadSharedViews()
+                            sharedViewsDialog.open()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: sharedViewsDialog
+        parent: mainWindow.contentItem
+        modal: true
+        title: qsTr("Vues partagées")
+        standardButtons: Dialog.NoButton
+        width: parent ? Math.min(760, parent.width * 0.92) : 760
+
+        onOpened: {
+            plugin.loadSharedViews()
+            if (sharedViewsListModel.count > 0)
+                sharedViewsCombo.currentIndex = 0
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                ComboBox {
+                    id: sharedViewsCombo
+                    Layout.fillWidth: true
+                    model: sharedViewsListModel
+                    textRole: "label"
+                }
+
+                Button {
+                    text: qsTr("Recharger")
+                    onClicked: plugin.loadSharedViews()
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: {
+                    var item = plugin.selectedSharedView()
+                    return item
+                           ? qsTr("Couche : %1   •   Auteur : %2")
+                             .arg(item.layerName)
+                             .arg(item.author)
+                           : ""
+                }
+                opacity: 0.70
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: {
+                    var item = plugin.selectedSharedView()
+                    return item ? String(item.message || "") : ""
+                }
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Label {
+                    text: qsTr("Statut")
+                }
+
+                ComboBox {
+                    id: sharedViewStatusCombo
+                    model: ["À faire", "En cours", "Terminé", "Archivé"]
+
+                    onActivated: {
+                        plugin.updateSelectedSharedViewStatus(currentText)
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: qsTr("Appliquer la vue")
+                    enabled: sharedViewsListModel.count > 0
+                    onClicked: {
+                        if (plugin.applySelectedSharedView())
+                            sharedViewsDialog.close()
+                    }
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: plugin.sharedViewsError.length > 0
+                text: plugin.sharedViewsError
+                color: Theme.errorColor
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Button {
+                    text: qsTr("+ Nouvelle vue")
+                    onClicked: {
+                        sharedViewsDialog.close()
+                        saveSharedViewDialog.open()
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: qsTr("Fermer")
+                    onClicked: sharedViewsDialog.close()
+                }
+            }
+        }
+    }
 
     Dialog {
         id: shareDialog
