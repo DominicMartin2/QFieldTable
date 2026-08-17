@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.7
-description=QField Table v0.10.7 : restauration du zoom historique avant ouverture du formulaire natif.
+version=0.10.8
+description=QField Table v0.10.8 : zoom natif MapCanvas.jumpTo et verrouillage interactif de la carte.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
