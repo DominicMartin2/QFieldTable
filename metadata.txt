@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.10.6
-description=QField Table v0.10.6 : formulaire stable, boutons en haut et zoom via MapSettings.setExtent().
+version=0.10.7
+description=QField Table v0.10.7 : restauration du zoom historique avant ouverture du formulaire natif.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
