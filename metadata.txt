@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.2
-description=QField Table v0.12.2 : rechargement robuste des vues partagées avec sélection automatique de la couche cible.
+version=0.12.3
+description=QField Table v0.12.3 : Enregistrer sans fermer, bouton Fermer avec retour à la table, roulette globale du formulaire.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
