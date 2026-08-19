@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.3
-description=QField Table v0.12.3 : Enregistrer sans fermer, bouton Fermer avec retour à la table, roulette globale du formulaire.
+version=0.12.4
+description=QField Table v0.12.4 : Fermer sauvegarde puis revient à la table; Annuler ferme sans sauvegarder.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
