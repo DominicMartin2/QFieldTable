@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.23
-description=QField Table v0.12.23 : poignée de défilement indépendante basée directement sur la v0.12.5.
+version=0.13.0
+description=QField Table v0.13.0 : filtres facettés dynamiques, avec compteurs recalculés selon les autres filtres actifs.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

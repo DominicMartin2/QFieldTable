@@ -36,15 +36,13 @@ Item {
     property string pendingZoomFeatureId: ""
     property var pendingNativeEditFeature: null
     property bool nativePreviousMapInteractive: true
-    // v0.12.23 — Autosauvegarde du formulaire ouvert par QField Table.
+    // v0.13.0 — Autosauvegarde du formulaire ouvert par QField Table.
     property bool nativeEditSessionActive: false
     property bool returnToTableAfterNativeClose: false
-    property var nativeMainFormFlickable: null
-    property bool nativeScrollHandleReady: false
     property bool nativeAutosaveEnabled: true
     property int nativeAutosaveDelay: 2000
     property string nativeAutosaveSettingsPath: ""
-    // v0.12.23 — sélection et modification en lot.
+    // v0.13.0 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -59,7 +57,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.12.23 — source ValueRelation complète.
+    // v0.13.0 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -78,7 +76,7 @@ Item {
     // Si ce champ n'existe pas dans la couche, le plugin utilise featureId.
     property string batchJournalEntityIdField: "id_unique_inv"
 
-    // v0.12.23 — le FeatureModel de schéma est détaché/rattaché
+    // v0.13.0 — le FeatureModel de schéma est détaché/rattaché
     // explicitement lors d'un changement de couche.
     property var schemaLayer: null
     property var schemaFeature: null
@@ -100,7 +98,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.12.23 : cache des libellés ValueRelation / ValueMap.
+    // v0.13.0 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -123,7 +121,7 @@ Item {
     property int resizingColumnIndex: -1
     property real resizingColumnWidth: -1
     property string sharedViewCode: ""
-    // v0.12.23 — vues partagées synchronisées via une table du GeoPackage.
+    // v0.13.0 — vues partagées synchronisées via une table du GeoPackage.
     property string sharedViewsLayerName: "qfield_table_vues"
     property var sharedViewsLayer: null
     property string sharedViewsError: ""
@@ -210,12 +208,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.12.23 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.13.0 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.12.23 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.13.0 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -340,7 +338,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.12.23 iterator: " + error)
+            console.log("QField Table v0.13.0 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -383,7 +381,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.12.23 filtered iterator: " + error)
+            console.log("QField Table v0.13.0 filtered iterator: " + error)
         }
         updateLoadStatus()
 
@@ -510,7 +508,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.12.23 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.13.0 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -569,7 +567,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.12.23 : ne parcourt plus toutes les cellules au chargement.
+        // v0.13.0 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -626,7 +624,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.12.23 configuration invalide: " + e)
+            console.log("QField Table v0.13.0 configuration invalide: " + e)
             return ({})
         }
     }
@@ -650,7 +648,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.12.23 lecture propriété couche: " + e)
+            console.log("QField Table v0.13.0 lecture propriété couche: " + e)
         }
         return null
     }
@@ -682,7 +680,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.12.23 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.13.0 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1119,6 +1117,78 @@ Item {
         activeColumnFilters=c
     }
 
+    function rowMatchesGlobalSearch(row) {
+        var term =
+                searchField
+                ? String(searchField.text).toLowerCase().trim()
+                : ""
+
+        if (term.length === 0)
+            return true
+
+        if (String(row.featureId).toLowerCase().indexOf(term) >= 0)
+            return true
+
+        for (var c = 0; c < columns.length; ++c) {
+            if (String(rowValue(row, c))
+                    .toLowerCase()
+                    .indexOf(term) >= 0)
+                return true
+        }
+
+        return false
+    }
+
+    // Teste tous les filtres actifs sauf celui de la colonne indiquée.
+    // C'est le principe d'un filtre facetté : lorsque l'utilisateur ouvre
+    // le filtre de la colonne C, les compteurs de C reflètent A + B + D...
+    // sans être réduits par l'ancien filtre de C lui-même.
+    function rowMatchesFiltersExcept(row, excludedColumnIndex) {
+        for (var k in activeColumnFilters) {
+            var idx = Number(k)
+
+            if (Number(idx) === Number(excludedColumnIndex))
+                continue
+
+            var f = activeColumnFilters[k]
+            var value = rowValue(row, idx)
+            var text =
+                    String(
+                        value === undefined || value === null
+                        ? ""
+                        : value)
+
+            var needle =
+                    String(f.text || "")
+                    .toLowerCase()
+                    .trim()
+
+            if (f.mode === "values" &&
+                (!f.selected ||
+                 f.selected[distinctKey(value)] !== true))
+                return false
+
+            if (f.mode === "empty" &&
+                !valueIsEmpty(value))
+                return false
+
+            if (f.mode === "notempty" &&
+                valueIsEmpty(value))
+                return false
+
+            if (f.mode === "equals" &&
+                text.toLowerCase() !== needle)
+                return false
+
+            if (f.mode === "contains" &&
+                needle.length > 0 &&
+                text.toLowerCase().indexOf(needle) < 0)
+                return false
+        }
+
+        return true
+    }
+
     function rowMatchesAllFilters(row) {
         for (var k in activeColumnFilters) {
             var idx=Number(k), f=activeColumnFilters[k]
@@ -1255,7 +1325,7 @@ Item {
                     layers.push(projectLayers[key])
             }
         } catch (e) {
-            console.log("QField Table v0.12.23 recherche qfield_table_vues : " + e)
+            console.log("QField Table v0.13.0 recherche qfield_table_vues : " + e)
         }
 
         for (var i = 0; i < layers.length; ++i) {
@@ -2232,7 +2302,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.12.23 — diagnostic projet")
+        lines.push("QField Table v0.13.0 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -2318,7 +2388,7 @@ Item {
 
         var beforeCount = Object.keys(projectWidgetConfigs).length
 
-        // v0.12.23: ValueMap / Liste de valeurs is stored in the project too.
+        // v0.13.0: ValueMap / Liste de valeurs is stored in the project too.
         parseValueMapsStandard(xml)
 
         // Strategy 1: normal QGIS fieldConfiguration nesting.
@@ -2701,7 +2771,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.12.23 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.13.0 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2732,7 +2802,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.12.23 direct layer lookup: " + e0)
+                console.log("QField Table v0.13.0 direct layer lookup: " + e0)
             }
         }
 
@@ -2984,7 +3054,7 @@ Item {
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.12.23 relation iterator: " + e
+                "QField Table v0.13.0 relation iterator: " + e
             )
         } finally {
             try {
@@ -3217,7 +3287,7 @@ Item {
                 }
             }
 
-            // v0.12.23 : champs optionnels. Un ancien journal continue de
+            // v0.13.0 : champs optionnels. Un ancien journal continue de
             // fonctionner, mais le script de migration active ces données.
             try { f.setAttribute("journal_uuid", String(entry.uuid || "")) } catch (uuidError) {}
             try { f.setAttribute("utilisateur", String(entry.user || "")) } catch (userError) {}
@@ -3410,7 +3480,7 @@ Item {
                     String(value).trim().length > 0)
                 return String(value).trim()
         } catch (e) {
-            console.log('QField Table v0.12.23 cloud user: ' + e)
+            console.log('QField Table v0.13.0 cloud user: ' + e)
         }
 
         return qsTr('Utilisateur local')
@@ -3695,7 +3765,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.12.23 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.13.0 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -3710,7 +3780,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.12.23 : la construction initiale ne lit plus chaque attribut de
+        // v0.13.0 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -3781,16 +3851,31 @@ Item {
             selectedDistinctKeys = ({})
             return
         }
+
         var counts = ({})
         var originals = ({})
+
         for (var i = 0; i < flatRows.length; ++i) {
-            var value = rowValue(flatRows[i], filterColumn)
+            var row = flatRows[i]
+
+            // v0.13.0 : le compteur doit représenter uniquement les
+            // enregistrements encore disponibles après les AUTRES filtres.
+            if (!rowMatchesGlobalSearch(row))
+                continue
+
+            if (!rowMatchesFiltersExcept(row, filterColumn))
+                continue
+
+            var value = rowValue(row, filterColumn)
             var key = distinctKey(value)
+
             counts[key] = (counts[key] || 0) + 1
             originals[key] = value
         }
+
         var result = []
         var selection = ({})
+
         for (var key in counts) {
             result.push({
                 "key": key,
@@ -3799,16 +3884,25 @@ Item {
                 "count": counts[key],
                 "checked": true
             })
+
             selection[key] = true
         }
+
         result.sort(function(a, b) {
-            if (a.count !== b.count) return b.count - a.count
-            return String(a.label).localeCompare(String(b.label), Qt.locale(), Locale.CompareCaseInsensitive)
+            if (a.count !== b.count)
+                return b.count - a.count
+
+            return String(a.label).localeCompare(
+                        String(b.label),
+                        Qt.locale(),
+                        Locale.CompareCaseInsensitive)
         })
+
         distinctValues = result
         selectedDistinctKeys = selection
         filterDistinctList()
     }
+
 
     function filterDistinctList() {
         var needle = String(distinctSearchText || "").toLowerCase().trim()
@@ -3875,21 +3969,31 @@ Item {
     }
 
     function pendingResultCount() {
-        if (filterColumn < 0 || filterColumn >= columns.length) return flatRows.length
-        var term = searchField ? String(searchField.text).toLowerCase().trim() : ""
+        if (filterColumn < 0 || filterColumn >= columns.length)
+            return filteredRows.length
+
         var count = 0
+
         for (var r = 0; r < flatRows.length; ++r) {
             var row = flatRows[r]
-            var globalMatch = term.length === 0 || String(row.featureId).toLowerCase().indexOf(term) >= 0
-            if (!globalMatch) {
-                for (var c = 0; c < columns.length; ++c) {
-                    if (String(rowValue(row, c)).toLowerCase().indexOf(term) >= 0) { globalMatch = true; break }
-                }
-            }
-            if (globalMatch && pendingDistinctKeys[distinctKey(rowValue(row, filterColumn))] === true) count++
+
+            if (!rowMatchesGlobalSearch(row))
+                continue
+
+            if (!rowMatchesFiltersExcept(row, filterColumn))
+                continue
+
+            var key =
+                    distinctKey(
+                        rowValue(row, filterColumn))
+
+            if (pendingDistinctKeys[key] === true)
+                count++
         }
+
         return count
     }
+
 
     function updatePendingDistinct(key, checked) {
         var copy = cloneSelection(pendingDistinctKeys)
@@ -3961,33 +4065,41 @@ Item {
     }
 
     function applyView() {
-        var term = searchField ? String(searchField.text).toLowerCase().trim() : ""
         var result = []
+
         for (var r = 0; r < flatRows.length; ++r) {
             var row = flatRows[r]
-            var globalMatch = term.length === 0 || String(row.featureId).toLowerCase().indexOf(term) >= 0
-            if (!globalMatch) {
-                for (var c = 0; c < columns.length; ++c) {
-                    if (String(rowValue(row, c)).toLowerCase().indexOf(term) >= 0) {
-                        globalMatch = true
-                        break
-                    }
-                }
-            }
-            if (globalMatch && rowMatchesAllFilters(row)) result.push(row)
+
+            if (rowMatchesGlobalSearch(row) &&
+                rowMatchesAllFilters(row))
+                result.push(row)
         }
 
-        if (sortColumn >= 0 && sortColumn < columns.length) {
+        if (sortColumn >= 0 &&
+            sortColumn < columns.length) {
+
             var col = sortColumn
             var asc = sortAscending
+
             result.sort(function(a, b) {
-                var cmp = compareValues(rowValue(a, col), rowValue(b, col))
-                if (cmp === 0) cmp = compareValues(a.featureId, b.featureId)
+                var cmp =
+                        compareValues(
+                            rowValue(a, col),
+                            rowValue(b, col))
+
+                if (cmp === 0)
+                    cmp =
+                        compareValues(
+                            a.featureId,
+                            b.featureId)
+
                 return asc ? cmp : -cmp
             })
         }
+
         filteredRows = result
     }
+
 
     function toggleSort(columnIndex) {
         if (sortColumn === columnIndex) sortAscending = !sortAscending
@@ -4036,7 +4148,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.12.23 zoom: " + zoomError)
+            console.log("QField Table v0.13.0 zoom: " + zoomError)
             return false
         }
     }
@@ -4077,7 +4189,7 @@ Item {
         try {
             LayerUtils.selectFeaturesInLayer(selectedLayer, [numericId])
         } catch (selectionError) {
-            console.log("QField Table v0.12.23 sélection : " + selectionError)
+            console.log("QField Table v0.13.0 sélection : " + selectionError)
         }
 
         refreshAfterNativeEdit = true
@@ -4126,7 +4238,7 @@ Item {
             })
 
         } catch (jumpError) {
-            console.log("QField Table v0.12.23 jumpTo : " + jumpError)
+            console.log("QField Table v0.13.0 jumpTo : " + jumpError)
 
             // Ne jamais empêcher l'édition si le zoom échoue.
             try {
@@ -4187,7 +4299,6 @@ Item {
                 nativeMapBlocker.visible = true
                 nativeEditBar.visible = true
                 nativeEditBar.raise()
-                nativeScrollHandleTimer.restart()
             })
             return true
 
@@ -4195,7 +4306,7 @@ Item {
             diagnosticMessage =
                     qsTr("Impossible d’ouvrir le formulaire natif : %1")
                     .arg(String(formError))
-            console.log("QField Table v0.12.23 formulaire natif : " + formError)
+            console.log("QField Table v0.13.0 formulaire natif : " + formError)
             try { mainWindow.displayToast(diagnosticMessage) } catch (toastError2) {}
             return false
         }
@@ -4250,7 +4361,7 @@ Item {
 
             return true
         } catch (e) {
-            console.log("QField Table v0.12.23 réglages autosave : " + e)
+            console.log("QField Table v0.13.0 réglages autosave : " + e)
             return false
         }
     }
@@ -4274,7 +4385,7 @@ Item {
                         nativeAutosaveSettingsPath,
                         JSON.stringify(payload, null, 2))
         } catch (e) {
-            console.log("QField Table v0.12.23 sauvegarde réglages : " + e)
+            console.log("QField Table v0.13.0 sauvegarde réglages : " + e)
             return false
         }
     }
@@ -4286,80 +4397,6 @@ Item {
         var seconds = nativeAutosaveDelay / 1000.0
         return qsTr("Autosave : %1 s").arg(seconds.toFixed(
                     seconds % 1 === 0 ? 0 : 1))
-    }
-
-    function prepareNativeScrollHandle() {
-        nativeMainFormFlickable = nativeFormMainFlickable()
-        nativeScrollHandleReady = nativeMainFormFlickable !== null
-        return nativeScrollHandleReady
-    }
-
-    function clearNativeScrollHandle() {
-        nativeMainFormFlickable = null
-        nativeScrollHandleReady = false
-    }
-
-    function nativeScrollHandleFraction() {
-        var target = nativeMainFormFlickable
-        if (!target)
-            return 0
-
-        try {
-            var maximum =
-                    Math.max(0,
-                             Number(target.contentHeight) -
-                             Number(target.height))
-
-            if (maximum <= 0)
-                return 0
-
-            return Math.max(
-                        0,
-                        Math.min(
-                            1,
-                            Number(target.contentY) / maximum))
-        } catch (e) {
-            return 0
-        }
-    }
-
-    function nativeScrollHandlePageFraction() {
-        var target = nativeMainFormFlickable
-        if (!target)
-            return 1
-
-        try {
-            var contentHeight = Number(target.contentHeight)
-            var viewHeight = Number(target.height)
-
-            if (contentHeight <= 0)
-                return 1
-
-            return Math.max(
-                        0.05,
-                        Math.min(1, viewHeight / contentHeight))
-        } catch (e) {
-            return 1
-        }
-    }
-
-    function setNativeScrollHandleFraction(fraction) {
-        var target = nativeMainFormFlickable
-        if (!target)
-            return false
-
-        try {
-            var maximum =
-                    Math.max(0,
-                             Number(target.contentHeight) -
-                             Number(target.height))
-
-            var f = Math.max(0, Math.min(1, Number(fraction)))
-            target.contentY = maximum * f
-            return true
-        } catch (e) {
-            return false
-        }
     }
 
     function nativeFormMainFlickable() {
@@ -4452,7 +4489,7 @@ Item {
 
         } catch (scrollError) {
             console.log(
-                "QField Table v0.12.23 défilement formulaire : " +
+                "QField Table v0.13.0 défilement formulaire : " +
                 scrollError)
             return false
         }
@@ -4499,7 +4536,7 @@ Item {
 
         // La première sauvegarde d'une nouvelle entité doit rester manuelle.
         if (nativeFormIsNewEntity()) {
-            console.log("QField Table v0.12.23 Autosave : nouvelle entité ignorée")
+            console.log("QField Table v0.13.0 Autosave : nouvelle entité ignorée")
             return
         }
 
@@ -4513,11 +4550,11 @@ Item {
                 mainWindow.displayToast(
                     qsTr("Autosauvegarde impossible : remplissez les champs obligatoires."))
 
-                console.log("QField Table v0.12.23 Autosave : contrainte invalide")
+                console.log("QField Table v0.13.0 Autosave : contrainte invalide")
                 return
             }
         } catch (constraintError) {
-            console.log("QField Table v0.12.23 Autosave contraintes : " +
+            console.log("QField Table v0.13.0 Autosave contraintes : " +
                         constraintError)
         }
 
@@ -4533,13 +4570,13 @@ Item {
 
             if (ok) {
                 mainWindow.displayToast(qsTr("Enregistrement automatique"))
-                console.log("QField Table v0.12.23 Autosave : sauvegarde réussie")
+                console.log("QField Table v0.13.0 Autosave : sauvegarde réussie")
             } else {
-                console.log("QField Table v0.12.23 Autosave : sauvegarde refusée")
+                console.log("QField Table v0.13.0 Autosave : sauvegarde refusée")
             }
 
         } catch (saveError) {
-            console.log("QField Table v0.12.23 Autosave erreur : " + saveError)
+            console.log("QField Table v0.13.0 Autosave erreur : " + saveError)
         }
     }
 
@@ -4548,7 +4585,7 @@ Item {
             return
 
         nativeAutosaveTimer.restart()
-        console.log("QField Table v0.12.23 Autosave : modification détectée")
+        console.log("QField Table v0.13.0 Autosave : modification détectée")
     }
 
     function saveNativeFeatureFormCore(showToast) {
@@ -4607,7 +4644,7 @@ Item {
             return false
 
         } catch (saveError) {
-            console.log("QField Table v0.12.23 sauvegarde : " + saveError)
+            console.log("QField Table v0.13.0 sauvegarde : " + saveError)
 
             if (showToast) {
                 try {
@@ -4642,7 +4679,6 @@ Item {
     }
 
     function closeNativeFeatureFormAndReturn() {
-        clearNativeScrollHandle()
         var drawer = overlayFeatureFormDrawer
 
         if (!saveNativeFeatureFormCore(false)) {
@@ -4681,7 +4717,7 @@ Item {
 
         } catch (closeError) {
             console.log(
-                "QField Table v0.12.23 fermeture après sauvegarde : " +
+                "QField Table v0.13.0 fermeture après sauvegarde : " +
                 closeError)
 
             returnToTableAfterNativeClose = true
@@ -4691,7 +4727,6 @@ Item {
 
 
     function cancelNativeFeatureForm() {
-        clearNativeScrollHandle()
         var drawer = overlayFeatureFormDrawer
 
         nativeAutosaveTimer.stop()
@@ -4720,7 +4755,7 @@ Item {
                 drawer.close()
 
         } catch (cancelError) {
-            console.log("QField Table v0.12.23 annulation : " + cancelError)
+            console.log("QField Table v0.13.0 annulation : " + cancelError)
             try { drawer.close() } catch (closeError) {}
         }
     }
@@ -4752,7 +4787,7 @@ Item {
         var m = d ? d.featureModel : null
         var am = f ? f.model : null
 
-        var text = "QField Table v0.12.23 — diagnostic formulaire natif\n\n"
+        var text = "QField Table v0.13.0 — diagnostic formulaire natif\n\n"
         text += qmlObjectSummary(d, "OverlayFeatureFormDrawer")
         text += "\n" + qmlObjectSummary(f, "FeatureForm")
         text += "\n" + qmlObjectSummary(m, "FeatureModel")
@@ -4837,7 +4872,7 @@ Item {
                 console.log("QField Table — journal non chargé : " + batchJournalPersistenceError)
         })
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.12.23 chargé")
+        console.log("QField Table v0.13.0 chargé")
     }
 
     // Verrouille le canevas pendant l'édition. Le FeatureForm natif est
@@ -4886,103 +4921,6 @@ Item {
 
         onWheel: function(wheel) {
             plugin.scrollNativeFormByWheel(wheel)
-        }
-    }
-
-    // Poignée de défilement indépendante.
-    // Elle n'intercepte PAS la roulette et ne modifie PAS la largeur du
-    // formulaire. Elle sert uniquement à faire glisser directement le
-    // QQuickFlickable principal identifié dans le formulaire.
-    Rectangle {
-        id: nativeScrollHandleTrack
-
-        parent: plugin.overlayFeatureFormDrawer &&
-                plugin.overlayFeatureFormDrawer.featureForm
-                ? plugin.overlayFeatureFormDrawer.featureForm.parent
-                : plugin
-
-        visible: plugin.nativeEditSessionActive &&
-                 plugin.nativeScrollHandleReady
-
-        width: 34
-        z: 999998
-
-        anchors.right: parent ? parent.right : undefined
-        anchors.top: parent ? parent.top : undefined
-        anchors.bottom: parent ? parent.bottom : undefined
-        anchors.topMargin: 58
-        anchors.bottomMargin: 4
-
-        color: "#09000000"
-
-        Rectangle {
-            id: nativeScrollHandleThumb
-
-            width: 22
-            radius: 11
-            anchors.horizontalCenter: parent.horizontalCenter
-            color: Theme.mainColor
-            opacity: 0.90
-
-            property real pageFraction:
-                plugin.nativeScrollHandlePageFraction()
-
-            height: Math.max(
-                        52,
-                        nativeScrollHandleTrack.height * pageFraction)
-
-            y: (nativeScrollHandleTrack.height - height) *
-               plugin.nativeScrollHandleFraction()
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            hoverEnabled: true
-
-            property real dragOffset: 0
-
-            onPressed: function(mouse) {
-                var thumbTop = nativeScrollHandleThumb.y
-                var thumbBottom =
-                        thumbTop + nativeScrollHandleThumb.height
-
-                if (mouse.y >= thumbTop &&
-                    mouse.y <= thumbBottom) {
-                    dragOffset = mouse.y - thumbTop
-                } else {
-                    dragOffset =
-                            nativeScrollHandleThumb.height / 2
-
-                    var usable =
-                            nativeScrollHandleTrack.height -
-                            nativeScrollHandleThumb.height
-
-                    if (usable > 0) {
-                        plugin.setNativeScrollHandleFraction(
-                            (mouse.y - dragOffset) / usable)
-                    }
-                }
-
-                mouse.accepted = true
-            }
-
-            onPositionChanged: function(mouse) {
-                if (!pressed)
-                    return
-
-                var usable =
-                        nativeScrollHandleTrack.height -
-                        nativeScrollHandleThumb.height
-
-                if (usable <= 0)
-                    return
-
-                plugin.setNativeScrollHandleFraction(
-                    (mouse.y - dragOffset) / usable)
-
-                mouse.accepted = true
-            }
         }
     }
 
@@ -5174,13 +5112,6 @@ Item {
 
 
     Timer {
-        id: nativeScrollHandleTimer
-        interval: 500
-        repeat: false
-        onTriggered: plugin.prepareNativeScrollHandle()
-    }
-
-    Timer {
         id: returnToTableTimer
         interval: 280
         repeat: false
@@ -5322,7 +5253,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.12.23")
+        title: qsTr("QField Table — v0.13.0")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -5932,7 +5863,7 @@ Item {
                 }
             }
 
-            // v0.12.23 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.13.0 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
