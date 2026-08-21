@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.10
-description=QField Table v0.12.10 : Annuler sans boîte native via FeatureModel.reset et roulette carte via signal aboutToWheelZoom.
+version=0.12.11
+description=QField Table v0.12.11 : retour au comportement Annuler de v0.12.5 et zone dédiée de défilement du formulaire.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
