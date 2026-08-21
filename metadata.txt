@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.21
-description=QField Table v0.12.21 TEST : scrollbar dédiée au QQuickFlickable principal identifié par diagnostic.
+version=0.12.23
+description=QField Table v0.12.23 : poignée de défilement indépendante basée directement sur la v0.12.5.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
