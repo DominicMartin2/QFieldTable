@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.12
-description=QField Table v0.12.12 : barre de défilement native du formulaire élargie.
+version=0.12.13
+description=QField Table v0.12.13 TEST : barre de défilement native portée volontairement à 200 px.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
