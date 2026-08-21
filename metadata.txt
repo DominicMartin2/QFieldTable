@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.9
-description=QField Table v0.12.9 DIAGNOSTIC : annulation non réentrante et test WheelHandler sur le canevas.
+version=0.12.10
+description=QField Table v0.12.10 : Annuler sans boîte native via FeatureModel.reset et roulette carte via signal aboutToWheelZoom.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
