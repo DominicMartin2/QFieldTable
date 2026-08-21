@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.13.0
-description=QField Table v0.13.0 : filtres facettés dynamiques, avec compteurs recalculés selon les autres filtres actifs.
+version=0.13.1
+description=QField Table v0.13.1 : chargement complet automatique de la couche, sans limite initiale de 100 enregistrements.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
