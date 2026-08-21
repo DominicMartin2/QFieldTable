@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.15
-description=QField Table v0.12.15 : large zone de défilement draggable à droite du formulaire, sans modifier la roulette globale.
+version=0.12.16
+description=QField Table v0.12.16 : bande vide à droite du formulaire pour un défilement fiable hors des listes.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
