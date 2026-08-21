@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.16
-description=QField Table v0.12.16 : bande vide à droite du formulaire pour un défilement fiable hors des listes.
+version=0.12.17
+description=QField Table v0.12.17 : bande de défilement externe placée à gauche du formulaire natif.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
