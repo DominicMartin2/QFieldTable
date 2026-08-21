@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.13
-description=QField Table v0.12.13 TEST : barre de défilement native portée volontairement à 200 px.
+version=0.12.14
+description=QField Table v0.12.14 : roulette du formulaire forcée vers le défilement principal, même au-dessus des listes multiples.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
