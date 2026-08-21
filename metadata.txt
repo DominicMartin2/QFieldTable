@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.5
-description=QField Table v0.12.5 : retour explicite à la table après Fermer, avec rechargement des données.
+version=0.12.6
+description=QField Table v0.12.6 : retour à la table après Annuler et roulette globale redirigée vers le formulaire.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
