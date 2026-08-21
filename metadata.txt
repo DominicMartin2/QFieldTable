@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.6
-description=QField Table v0.12.6 : retour à la table après Annuler et roulette globale redirigée vers le formulaire.
+version=0.12.7
+description=QField Table v0.12.7 : retour direct après signal cancelled et roulette captée directement sur le MapCanvas.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
