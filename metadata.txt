@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.14
-description=QField Table v0.12.14 : roulette du formulaire forcée vers le défilement principal, même au-dessus des listes multiples.
+version=0.12.15
+description=QField Table v0.12.15 : large zone de défilement draggable à droite du formulaire, sans modifier la roulette globale.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
