@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.17
-description=QField Table v0.12.17 : bande de défilement externe placée à gauche du formulaire natif.
+version=0.12.18
+description=QField Table v0.12.18 DIAGNOSTIC : inventaire récursif des éléments QML du formulaire natif.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
