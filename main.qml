@@ -36,7 +36,7 @@ Item {
     property string pendingZoomFeatureId: ""
     property var pendingNativeEditFeature: null
     property bool nativePreviousMapInteractive: true
-    // v0.12.8 DIAGNOSTIC — Autosauvegarde du formulaire ouvert par QField Table.
+    // v0.12.9 DIAGNOSTIC — Autosauvegarde du formulaire ouvert par QField Table.
     property bool nativeEditSessionActive: false
     property bool returnToTableAfterNativeClose: false
     property string diagnosticText: ""
@@ -47,7 +47,7 @@ Item {
     property bool nativeAutosaveEnabled: true
     property int nativeAutosaveDelay: 2000
     property string nativeAutosaveSettingsPath: ""
-    // v0.12.8 DIAGNOSTIC — sélection et modification en lot.
+    // v0.12.9 DIAGNOSTIC — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -62,7 +62,7 @@ Item {
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.12.8 DIAGNOSTIC — source ValueRelation complète.
+    // v0.12.9 DIAGNOSTIC — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -81,7 +81,7 @@ Item {
     // Si ce champ n'existe pas dans la couche, le plugin utilise featureId.
     property string batchJournalEntityIdField: "id_unique_inv"
 
-    // v0.12.8 DIAGNOSTIC — le FeatureModel de schéma est détaché/rattaché
+    // v0.12.9 DIAGNOSTIC — le FeatureModel de schéma est détaché/rattaché
     // explicitement lors d'un changement de couche.
     property var schemaLayer: null
     property var schemaFeature: null
@@ -103,7 +103,7 @@ Item {
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.12.8 DIAGNOSTIC : cache des libellés ValueRelation / ValueMap.
+    // v0.12.9 DIAGNOSTIC : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -126,7 +126,7 @@ Item {
     property int resizingColumnIndex: -1
     property real resizingColumnWidth: -1
     property string sharedViewCode: ""
-    // v0.12.8 DIAGNOSTIC — vues partagées synchronisées via une table du GeoPackage.
+    // v0.12.9 DIAGNOSTIC — vues partagées synchronisées via une table du GeoPackage.
     property string sharedViewsLayerName: "qfield_table_vues"
     property var sharedViewsLayer: null
     property string sharedViewsError: ""
@@ -213,12 +213,12 @@ Item {
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.12.8 DIAGNOSTIC mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.12.9 DIAGNOSTIC mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.12.8 DIAGNOSTIC canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.12.9 DIAGNOSTIC canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -343,7 +343,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.12.8 DIAGNOSTIC iterator: " + error)
+            console.log("QField Table v0.12.9 DIAGNOSTIC iterator: " + error)
         }
 
         updateLoadStatus()
@@ -386,7 +386,7 @@ Item {
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.12.8 DIAGNOSTIC filtered iterator: " + error)
+            console.log("QField Table v0.12.9 DIAGNOSTIC filtered iterator: " + error)
         }
         updateLoadStatus()
 
@@ -513,7 +513,7 @@ Item {
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -572,7 +572,7 @@ Item {
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.12.8 DIAGNOSTIC : ne parcourt plus toutes les cellules au chargement.
+        // v0.12.9 DIAGNOSTIC : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -629,7 +629,7 @@ Item {
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC configuration invalide: " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC configuration invalide: " + e)
             return ({})
         }
     }
@@ -653,7 +653,7 @@ Item {
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC lecture propriété couche: " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC lecture propriété couche: " + e)
         }
         return null
     }
@@ -685,7 +685,7 @@ Item {
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1258,7 +1258,7 @@ Item {
                     layers.push(projectLayers[key])
             }
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC recherche qfield_table_vues : " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC recherche qfield_table_vues : " + e)
         }
 
         for (var i = 0; i < layers.length; ++i) {
@@ -2235,7 +2235,7 @@ Item {
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.12.8 DIAGNOSTIC — diagnostic projet")
+        lines.push("QField Table v0.12.9 DIAGNOSTIC — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -2321,7 +2321,7 @@ Item {
 
         var beforeCount = Object.keys(projectWidgetConfigs).length
 
-        // v0.12.8 DIAGNOSTIC: ValueMap / Liste de valeurs is stored in the project too.
+        // v0.12.9 DIAGNOSTIC: ValueMap / Liste de valeurs is stored in the project too.
         parseValueMapsStandard(xml)
 
         // Strategy 1: normal QGIS fieldConfiguration nesting.
@@ -2704,7 +2704,7 @@ Item {
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.12.9 DIAGNOSTIC ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2735,7 +2735,7 @@ Item {
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.12.8 DIAGNOSTIC direct layer lookup: " + e0)
+                console.log("QField Table v0.12.9 DIAGNOSTIC direct layer lookup: " + e0)
             }
         }
 
@@ -2987,7 +2987,7 @@ Item {
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.12.8 DIAGNOSTIC relation iterator: " + e
+                "QField Table v0.12.9 DIAGNOSTIC relation iterator: " + e
             )
         } finally {
             try {
@@ -3220,7 +3220,7 @@ Item {
                 }
             }
 
-            // v0.12.8 DIAGNOSTIC : champs optionnels. Un ancien journal continue de
+            // v0.12.9 DIAGNOSTIC : champs optionnels. Un ancien journal continue de
             // fonctionner, mais le script de migration active ces données.
             try { f.setAttribute("journal_uuid", String(entry.uuid || "")) } catch (uuidError) {}
             try { f.setAttribute("utilisateur", String(entry.user || "")) } catch (userError) {}
@@ -3413,7 +3413,7 @@ Item {
                     String(value).trim().length > 0)
                 return String(value).trim()
         } catch (e) {
-            console.log('QField Table v0.12.8 DIAGNOSTIC cloud user: ' + e)
+            console.log('QField Table v0.12.9 DIAGNOSTIC cloud user: ' + e)
         }
 
         return qsTr('Utilisateur local')
@@ -3698,7 +3698,7 @@ Item {
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.12.8 DIAGNOSTIC batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.12.9 DIAGNOSTIC batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -3713,7 +3713,7 @@ Item {
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.12.8 DIAGNOSTIC : la construction initiale ne lit plus chaque attribut de
+        // v0.12.9 DIAGNOSTIC : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -4039,7 +4039,7 @@ Item {
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.12.8 DIAGNOSTIC zoom: " + zoomError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC zoom: " + zoomError)
             return false
         }
     }
@@ -4080,7 +4080,7 @@ Item {
         try {
             LayerUtils.selectFeaturesInLayer(selectedLayer, [numericId])
         } catch (selectionError) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC sélection : " + selectionError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC sélection : " + selectionError)
         }
 
         refreshAfterNativeEdit = true
@@ -4129,7 +4129,7 @@ Item {
             })
 
         } catch (jumpError) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC jumpTo : " + jumpError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC jumpTo : " + jumpError)
 
             // Ne jamais empêcher l'édition si le zoom échoue.
             try {
@@ -4199,7 +4199,7 @@ Item {
             diagnosticMessage =
                     qsTr("Impossible d’ouvrir le formulaire natif : %1")
                     .arg(String(formError))
-            console.log("QField Table v0.12.8 DIAGNOSTIC formulaire natif : " + formError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC formulaire natif : " + formError)
             try { mainWindow.displayToast(diagnosticMessage) } catch (toastError2) {}
             return false
         }
@@ -4254,7 +4254,7 @@ Item {
 
             return true
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC réglages autosave : " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC réglages autosave : " + e)
             return false
         }
     }
@@ -4278,7 +4278,7 @@ Item {
                         nativeAutosaveSettingsPath,
                         JSON.stringify(payload, null, 2))
         } catch (e) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC sauvegarde réglages : " + e)
+            console.log("QField Table v0.12.9 DIAGNOSTIC sauvegarde réglages : " + e)
             return false
         }
     }
@@ -4374,7 +4374,7 @@ Item {
     function diagnosticCopy() {
         try {
             ClipboardManager.text =
-                    "QField Table v0.12.8 DIAGNOSTIC\n" +
+                    "QField Table v0.12.9 DIAGNOSTIC\n" +
                     diagnosticText
             mainWindow.displayToast(qsTr("Diagnostic copié."))
         } catch (e) {
@@ -4483,7 +4483,7 @@ Item {
 
         } catch (scrollError) {
             console.log(
-                "QField Table v0.12.8 DIAGNOSTIC défilement formulaire : " +
+                "QField Table v0.12.9 DIAGNOSTIC défilement formulaire : " +
                 scrollError)
             return false
         }
@@ -4530,7 +4530,7 @@ Item {
 
         // La première sauvegarde d'une nouvelle entité doit rester manuelle.
         if (nativeFormIsNewEntity()) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC Autosave : nouvelle entité ignorée")
+            console.log("QField Table v0.12.9 DIAGNOSTIC Autosave : nouvelle entité ignorée")
             return
         }
 
@@ -4544,11 +4544,11 @@ Item {
                 mainWindow.displayToast(
                     qsTr("Autosauvegarde impossible : remplissez les champs obligatoires."))
 
-                console.log("QField Table v0.12.8 DIAGNOSTIC Autosave : contrainte invalide")
+                console.log("QField Table v0.12.9 DIAGNOSTIC Autosave : contrainte invalide")
                 return
             }
         } catch (constraintError) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC Autosave contraintes : " +
+            console.log("QField Table v0.12.9 DIAGNOSTIC Autosave contraintes : " +
                         constraintError)
         }
 
@@ -4564,13 +4564,13 @@ Item {
 
             if (ok) {
                 mainWindow.displayToast(qsTr("Enregistrement automatique"))
-                console.log("QField Table v0.12.8 DIAGNOSTIC Autosave : sauvegarde réussie")
+                console.log("QField Table v0.12.9 DIAGNOSTIC Autosave : sauvegarde réussie")
             } else {
-                console.log("QField Table v0.12.8 DIAGNOSTIC Autosave : sauvegarde refusée")
+                console.log("QField Table v0.12.9 DIAGNOSTIC Autosave : sauvegarde refusée")
             }
 
         } catch (saveError) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC Autosave erreur : " + saveError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC Autosave erreur : " + saveError)
         }
     }
 
@@ -4579,7 +4579,7 @@ Item {
             return
 
         nativeAutosaveTimer.restart()
-        console.log("QField Table v0.12.8 DIAGNOSTIC Autosave : modification détectée")
+        console.log("QField Table v0.12.9 DIAGNOSTIC Autosave : modification détectée")
     }
 
     function saveNativeFeatureFormCore(showToast) {
@@ -4638,7 +4638,7 @@ Item {
             return false
 
         } catch (saveError) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC sauvegarde : " + saveError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC sauvegarde : " + saveError)
 
             if (showToast) {
                 try {
@@ -4714,7 +4714,7 @@ Item {
 
         } catch (closeError) {
             console.log(
-                "QField Table v0.12.8 DIAGNOSTIC fermeture après sauvegarde : " +
+                "QField Table v0.12.9 DIAGNOSTIC fermeture après sauvegarde : " +
                 closeError)
 
             returnToTableAfterNativeClose = true
@@ -4755,7 +4755,7 @@ Item {
             }
 
         } catch (cancelError) {
-            console.log("QField Table v0.12.8 DIAGNOSTIC annulation : " + cancelError)
+            console.log("QField Table v0.12.9 DIAGNOSTIC annulation : " + cancelError)
 
             nativeEditSessionActive = false
             try { drawer.close() } catch (closeError2) {}
@@ -4790,7 +4790,7 @@ Item {
         var m = d ? d.featureModel : null
         var am = f ? f.model : null
 
-        var text = "QField Table v0.12.8 DIAGNOSTIC — diagnostic formulaire natif\n\n"
+        var text = "QField Table v0.12.9 DIAGNOSTIC — diagnostic formulaire natif\n\n"
         text += qmlObjectSummary(d, "OverlayFeatureFormDrawer")
         text += "\n" + qmlObjectSummary(f, "FeatureForm")
         text += "\n" + qmlObjectSummary(m, "FeatureModel")
@@ -4875,7 +4875,7 @@ Item {
                 console.log("QField Table — journal non chargé : " + batchJournalPersistenceError)
         })
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.12.8 DIAGNOSTIC chargé")
+        console.log("QField Table v0.12.9 DIAGNOSTIC chargé")
     }
 
 
@@ -4883,22 +4883,18 @@ Item {
     // Capture la roulette directement SUR le canevas QField.
     // C'est plus fiable qu'un MouseArea parenté à mainWindow.contentItem,
     // car le MapCanvas est lui-même un élément d'interface de premier plan.
-    MouseArea {
-        id: mapCanvasWheelCatcher
+    WheelHandler {
+        id: mapCanvasWheelHandler
         parent: iface.mapCanvas()
-        anchors.fill: parent
-        visible: plugin.nativeEditSessionActive
-        z: 10000000
+        enabled: plugin.nativeEditSessionActive
+        target: null
+        blocking: true
 
-        // Aucun clic n'est capturé : uniquement la roulette.
-        acceptedButtons: Qt.NoButton
-        hoverEnabled: true
-
-        onWheel: function(wheel) {
+        onWheel: function(event) {
             plugin.diagnosticWheelMapCount++
-            plugin.diagnosticAdd("ROULETTE détectée sur mapCanvasWheelCatcher")
-            plugin.scrollNativeFormByWheel(wheel)
-            wheel.accepted = true
+            plugin.diagnosticAdd("WHEELHANDLER CARTE : événement reçu")
+            plugin.scrollNativeFormByWheel(event)
+            event.accepted = true
         }
     }
 
@@ -4978,7 +4974,7 @@ Item {
                 Layout.fillWidth: true
 
                 Label {
-                    text: "QField Table 0.12.8 — DIAGNOSTIC"
+                    text: "QField Table 0.12.9 — DIAGNOSTIC"
                     color: "white"
                     font.bold: true
                     Layout.fillWidth: true
@@ -5182,6 +5178,7 @@ Item {
         ignoreUnknownSignals: true
 
         function onClosed() {
+            plugin.diagnosticAdd("SIGNAL Drawer.onClosed REÇU")
             nativeAutosaveTimer.stop()
             plugin.nativeEditSessionActive = false
             plugin.nativeEditBar.visible = false
@@ -5220,32 +5217,23 @@ Item {
 
         function onCancelled() {
             plugin.diagnosticAdd("SIGNAL FeatureForm.cancelled REÇU")
-            plugin.diagnosticSnapshot()
+            plugin.diagnosticAdd("Annulation confirmée : aucun drawer.close() depuis onCancelled")
             nativeAutosaveTimer.stop()
+
             plugin.nativeEditSessionActive = false
             plugin.nativeEditBar.visible = false
             plugin.nativeMapBlocker.visible = false
+            plugin.returnToTableAfterNativeClose = true
+            plugin.refreshAfterNativeEdit = true
 
             var canvas = iface.mapCanvas()
             if (canvas)
                 canvas.interactive = plugin.nativePreviousMapInteractive
 
-            // Le signal cancelled arrive après validation de la boîte
-            // « Annuler l'édition ». Fermer le drawer si QField ne l'a
-            // pas déjà fait, puis rouvrir directement la table.
-            try {
-                if (plugin.overlayFeatureFormDrawer)
-                    plugin.overlayFeatureFormDrawer.close()
-            } catch (drawerCloseError) {}
-
-            if (plugin.returnToTableAfterNativeClose) {
-                plugin.returnToTableAfterNativeClose = false
-                returnToTableTimer.stop()
-
-                Qt.callLater(function() {
-                    plugin.openBrowser()
-                })
-            }
+            // IMPORTANT : ne jamais fermer le drawer depuis onCancelled().
+            // QField est déjà dans sa séquence native d'annulation.
+            // On attend qu'elle soit terminée avant de rouvrir la table.
+            cancelSafeReturnTimer.restart()
         }
     }
 
@@ -5254,6 +5242,20 @@ Item {
 
 
 
+
+    Timer {
+        id: cancelSafeReturnTimer
+        interval: 650
+        repeat: false
+        onTriggered: {
+            plugin.diagnosticAdd("Timer retour après Annuler déclenché")
+            plugin.returnToTableAfterNativeClose = false
+            Qt.callLater(function() {
+                plugin.diagnosticAdd("Réouverture QField Table après Annuler")
+                plugin.openBrowser()
+            })
+        }
+    }
 
     Timer {
         id: returnToTableTimer
@@ -5397,7 +5399,7 @@ Item {
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.12.8 DIAGNOSTIC")
+        title: qsTr("QField Table — v0.12.9 DIAGNOSTIC")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -6007,7 +6009,7 @@ Item {
                 }
             }
 
-            // v0.12.8 DIAGNOSTIC : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.12.9 DIAGNOSTIC : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
