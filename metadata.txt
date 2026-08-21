@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.20
-description=QField Table v0.12.20 DIAGNOSTIC : diagnostic filtré des éléments de défilement et sauvegarde dans un fichier texte.
+version=0.12.21
+description=QField Table v0.12.21 TEST : scrollbar dédiée au QQuickFlickable principal identifié par diagnostic.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
