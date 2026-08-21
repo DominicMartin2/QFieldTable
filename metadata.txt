@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.12.7
-description=QField Table v0.12.7 : retour direct après signal cancelled et roulette captée directement sur le MapCanvas.
+version=0.12.8
+description=QField Table v0.12.8 DIAGNOSTIC : diagnostic visuel Annuler, fermeture du formulaire et roulette sur la carte.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
