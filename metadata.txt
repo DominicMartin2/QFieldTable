@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.13.2
-description=QField Table v0.13.2 : modification en lot avec remise à NULL des ValueRelation simples et vidage {} des ValueRelation multiples.
+version=0.14.0
+description=QField Table v0.14.0 : synchronisation optionnelle des filtres avec la carte, restauration de l'affichage et zoom sur les résultats.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg

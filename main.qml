@@ -21,6 +21,15 @@ Item {
     property string nativeEditDiagnostic: ""
     property bool nativeDiagnosticVisible: false
 
+    // v0.14.0 — synchronisation facultative de la carte avec les lignes filtrées.
+    // Le subset d'origine est toujours mémorisé puis restauré.
+    property bool mapFilterEnabled: false
+    property bool mapFilterActive: false
+    property var mapFilterLayer: null
+    property string mapFilterOriginalSubset: ""
+    property string mapFilterAppliedSubset: ""
+    property string mapFilterStatus: ""
+
     property var vectorLayers: []
     property var selectedLayer: null
     property var previewFeatures: []
@@ -35,13 +44,13 @@ property int totalFeatureCount: 0
     property string pendingZoomFeatureId: ""
     property var pendingNativeEditFeature: null
     property bool nativePreviousMapInteractive: true
-    // v0.13.2 — Autosauvegarde du formulaire ouvert par QField Table.
+    // v0.14.0 — Autosauvegarde du formulaire ouvert par QField Table.
     property bool nativeEditSessionActive: false
     property bool returnToTableAfterNativeClose: false
     property bool nativeAutosaveEnabled: true
     property int nativeAutosaveDelay: 2000
     property string nativeAutosaveSettingsPath: ""
-    // v0.13.2 — sélection et modification en lot.
+    // v0.14.0 — sélection et modification en lot.
     property var batchSelectedIds: ({})
     property var batchFieldItems: []
     property var batchRelationItems: []
@@ -57,7 +66,7 @@ property int totalFeatureCount: 0
     property int batchSuccessCount: 0
     property var batchFailedIds: []
     property bool batchInProgress: false
-    // v0.13.2 — source ValueRelation complète.
+    // v0.14.0 — source ValueRelation complète.
     property var batchRelationLayer: null
     property string batchRelationLayerId: ""
     property string batchRelationKeyField: ""
@@ -76,7 +85,7 @@ property int totalFeatureCount: 0
     // Si ce champ n'existe pas dans la couche, le plugin utilise featureId.
     property string batchJournalEntityIdField: "id_unique_inv"
 
-    // v0.13.2 — le FeatureModel de schéma est détaché/rattaché
+    // v0.14.0 — le FeatureModel de schéma est détaché/rattaché
     // explicitement lors d'un changement de couche.
     property var schemaLayer: null
     property var schemaFeature: null
@@ -98,7 +107,7 @@ property int totalFeatureCount: 0
 
     // [{ alias, fieldName, fieldIndex, sampleValue }]
     property var columns: []
-    // v0.13.2 : cache des libellés ValueRelation / ValueMap.
+    // v0.14.0 : cache des libellés ValueRelation / ValueMap.
     property var relationDisplayCaches: ({})
     // [{ featureId, feature, values: [] }] — valeurs lues à la demande pour accélérer le chargement
     property var flatRows: []
@@ -121,7 +130,7 @@ property int totalFeatureCount: 0
     property int resizingColumnIndex: -1
     property real resizingColumnWidth: -1
     property string sharedViewCode: ""
-    // v0.13.2 — vues partagées synchronisées via une table du GeoPackage.
+    // v0.14.0 — vues partagées synchronisées via une table du GeoPackage.
     property string sharedViewsLayerName: "qfield_table_vues"
     property var sharedViewsLayer: null
     property string sharedViewsError: ""
@@ -208,12 +217,12 @@ property int totalFeatureCount: 0
                     for (var key in projectLayers) appendCandidate(projectLayers[key], seen)
                 }
             }
-        } catch (e1) { console.log("QField Table v0.13.2 mapLayers: " + e1) }
+        } catch (e1) { console.log("QField Table v0.14.0 mapLayers: " + e1) }
 
         try {
             var canvasLayers = mapCanvas.mapSettings.layers
             if (canvasLayers) for (var j = 0; j < canvasLayers.length; ++j) appendCandidate(canvasLayers[j], seen)
-        } catch (e2) { console.log("QField Table v0.13.2 canvas layers: " + e2) }
+        } catch (e2) { console.log("QField Table v0.14.0 canvas layers: " + e2) }
 
         try { appendCandidate(dashBoard.activeLayer, seen) } catch (e3) {}
 
@@ -263,6 +272,9 @@ property int totalFeatureCount: 0
 
     function selectLayer(index) {
         if (index < 0 || index >= vectorLayers.length) return
+
+        // Ne jamais laisser un filtre cartographique temporaire sur l'ancienne couche.
+        restoreMapDisplay()
 
         detachSchemaCollector()
         selectedLayer = vectorLayers[index]
@@ -338,7 +350,7 @@ property int totalFeatureCount: 0
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = String(error)
-            console.log("QField Table v0.13.2 iterator: " + error)
+            console.log("QField Table v0.14.0 iterator: " + error)
         }
 
         updateLoadStatus()
@@ -356,6 +368,14 @@ property int totalFeatureCount: 0
 
     function reloadFeaturesOnly() {
         if (!selectedLayer) return
+
+        // Le filtre de carte agit au niveau du fournisseur. On le retire avant
+        // de reconstruire la table afin que QField Table conserve toujours
+        // l'ensemble des données comme source de filtrage.
+        var reapplyMapFilter = mapFilterEnabled
+        if (mapFilterActive)
+            restoreMapDisplay(false)
+
         previewFeatures = []
         flatRows = []
         filteredRows = []
@@ -381,7 +401,7 @@ property int totalFeatureCount: 0
             previewFeatures = found
         } catch (error) {
             diagnosticMessage = qsTr("Erreur de chargement : %1").arg(String(error))
-            console.log("QField Table v0.13.2 filtered iterator: " + error)
+            console.log("QField Table v0.14.0 filtered iterator: " + error)
         }
         updateLoadStatus()
 
@@ -502,7 +522,7 @@ property int totalFeatureCount: 0
             // formateur n'est configuré. On la conserve alors telle quelle.
             return cleanDisplayedCollectionValue(text.length > 0 ? text : rawText)
         } catch (e) {
-            console.log("QField Table v0.13.2 represent_value(" + fieldName + "): " + e)
+            console.log("QField Table v0.14.0 represent_value(" + fieldName + "): " + e)
             return cleanDisplayedCollectionValue(rawText)
         }
     }
@@ -561,7 +581,7 @@ property int totalFeatureCount: 0
     }
 
     function optimizeColumnWidths(rows) {
-        // v0.13.2 : ne parcourt plus toutes les cellules au chargement.
+        // v0.14.0 : ne parcourt plus toutes les cellules au chargement.
         // La largeur initiale est estimée à partir de l’alias et de la valeur
         // de référence déjà fournie par le FeatureModel. Les autres valeurs
         // seront lues seulement lorsqu’une cellule devient visible.
@@ -618,7 +638,7 @@ property int totalFeatureCount: 0
             var parsed = JSON.parse(sessionProjectConfigurations || "{}")
             return parsed && typeof parsed === "object" ? parsed : ({})
         } catch (e) {
-            console.log("QField Table v0.13.2 configuration invalide: " + e)
+            console.log("QField Table v0.14.0 configuration invalide: " + e)
             return ({})
         }
     }
@@ -642,7 +662,7 @@ property int totalFeatureCount: 0
                 if (parsed && typeof parsed === "object") return parsed
             }
         } catch (e) {
-            console.log("QField Table v0.13.2 lecture propriété couche: " + e)
+            console.log("QField Table v0.14.0 lecture propriété couche: " + e)
         }
         return null
     }
@@ -674,7 +694,7 @@ property int totalFeatureCount: 0
             selectedLayer.setCustomProperty(layerConfigurationPropertyKey(), JSON.stringify(config))
             try { qgisProject.setDirty(true) } catch (dirtyError) {}
         } catch (e) {
-            console.log("QField Table v0.13.2 sauvegarde propriété couche: " + e)
+            console.log("QField Table v0.14.0 sauvegarde propriété couche: " + e)
         }
     }
 
@@ -1319,7 +1339,7 @@ property int totalFeatureCount: 0
                     layers.push(projectLayers[key])
             }
         } catch (e) {
-            console.log("QField Table v0.13.2 recherche qfield_table_vues : " + e)
+            console.log("QField Table v0.14.0 recherche qfield_table_vues : " + e)
         }
 
         for (var i = 0; i < layers.length; ++i) {
@@ -2296,7 +2316,7 @@ property int totalFeatureCount: 0
         var lower = source.toLowerCase()
 
         var lines = []
-        lines.push("QField Table v0.13.2 — diagnostic projet")
+        lines.push("QField Table v0.14.0 — diagnostic projet")
         lines.push("Source : " + sourceDescription)
         lines.push("Taille XML : " + source.length + " caractères")
         lines.push("")
@@ -2382,7 +2402,7 @@ property int totalFeatureCount: 0
 
         var beforeCount = Object.keys(projectWidgetConfigs).length
 
-        // v0.13.2: ValueMap / Liste de valeurs is stored in the project too.
+        // v0.14.0: ValueMap / Liste de valeurs is stored in the project too.
         parseValueMapsStandard(xml)
 
         // Strategy 1: normal QGIS fieldConfiguration nesting.
@@ -2765,7 +2785,7 @@ property int totalFeatureCount: 0
                     addLayer(projectLayers[key])
             }
         } catch (e1) {
-            console.log("QField Table v0.13.2 ProjectUtils.mapLayers: " + e1)
+            console.log("QField Table v0.14.0 ProjectUtils.mapLayers: " + e1)
         }
 
         // Complément : garder les couches déjà exposées par le plugin.
@@ -2796,7 +2816,7 @@ property int totalFeatureCount: 0
                         "method": "ProjectUtils.mapLayers — Layer ID"
                     }
             } catch (e0) {
-                console.log("QField Table v0.13.2 direct layer lookup: " + e0)
+                console.log("QField Table v0.14.0 direct layer lookup: " + e0)
             }
         }
 
@@ -3048,7 +3068,7 @@ property int totalFeatureCount: 0
         } catch (e) {
             batchRelationIteratorError = String(e)
             console.log(
-                "QField Table v0.13.2 relation iterator: " + e
+                "QField Table v0.14.0 relation iterator: " + e
             )
         } finally {
             try {
@@ -3061,7 +3081,7 @@ property int totalFeatureCount: 0
             return String(a.label).localeCompare(String(b.label))
         })
 
-        // v0.13.2 : une ValueRelation simple peut être explicitement remise
+        // v0.14.0 : une ValueRelation simple peut être explicitement remise
         // à NULL lors d'une modification en lot. Pour les relations multiples,
         // le vidage demeure une opération distincte qui écrit {}.
         if (!batchIsMultiValueRelation) {
@@ -3300,7 +3320,7 @@ property int totalFeatureCount: 0
                 }
             }
 
-            // v0.13.2 : champs optionnels. Un ancien journal continue de
+            // v0.14.0 : champs optionnels. Un ancien journal continue de
             // fonctionner, mais le script de migration active ces données.
             try { f.setAttribute("journal_uuid", String(entry.uuid || "")) } catch (uuidError) {}
             try { f.setAttribute("utilisateur", String(entry.user || "")) } catch (userError) {}
@@ -3493,7 +3513,7 @@ property int totalFeatureCount: 0
                     String(value).trim().length > 0)
                 return String(value).trim()
         } catch (e) {
-            console.log('QField Table v0.13.2 cloud user: ' + e)
+            console.log('QField Table v0.14.0 cloud user: ' + e)
         }
 
         return qsTr('Utilisateur local')
@@ -3794,7 +3814,7 @@ property int totalFeatureCount: 0
                     appendBatchJournal(row, oldRawValue, newValue, false, qsTr("Échec de sauvegarde"))
                 }
             } catch (e) {
-                console.log("QField Table v0.13.2 batch feature " + row.featureId + ": " + e)
+                console.log("QField Table v0.14.0 batch feature " + row.featureId + ": " + e)
                 batchFailedIds.push(String(row.featureId))
                 appendBatchJournal(row, oldRawValue, newValue, false, String(e))
             }
@@ -3809,7 +3829,7 @@ property int totalFeatureCount: 0
 
     function buildRows() {
         if (columns.length === 0 || previewFeatures.length === 0) return
-        // v0.13.2 : la construction initiale ne lit plus chaque attribut de
+        // v0.14.0 : la construction initiale ne lit plus chaque attribut de
         // chaque entité. On conserve l’objet QgsFeature et un cache vide;
         // rowValue() lira ensuite uniquement les colonnes réellement utilisées.
         var result = []
@@ -3887,7 +3907,7 @@ property int totalFeatureCount: 0
         for (var i = 0; i < flatRows.length; ++i) {
             var row = flatRows[i]
 
-            // v0.13.2 : le compteur doit représenter uniquement les
+            // v0.14.0 : le compteur doit représenter uniquement les
             // enregistrements encore disponibles après les AUTRES filtres.
             if (!rowMatchesGlobalSearch(row))
                 continue
@@ -4093,6 +4113,200 @@ property int totalFeatureCount: 0
         return aText.localeCompare(bText, Qt.locale(), Locale.CompareCaseInsensitive)
     }
 
+    function mapFilterPrimaryKeyField() {
+        if (!selectedLayer) return "fid"
+
+        // 1) Demander au fournisseur son ou ses champs de clé primaire.
+        try {
+            var provider = selectedLayer.dataProvider()
+            if (provider && provider.pkAttributeIndexes) {
+                var indexes = provider.pkAttributeIndexes()
+                if (indexes && indexes.length > 0) {
+                    var fields = selectedLayer.fields
+                    var idx = Number(indexes[0])
+                    if (fields) {
+                        var fld = (typeof fields.at === "function")
+                                ? fields.at(idx)
+                                : fields[idx]
+                        if (fld) {
+                            var n = (typeof fld.name === "function")
+                                    ? fld.name()
+                                    : fld.name
+                            if (n !== undefined && String(n).length > 0)
+                                return String(n)
+                        }
+                    }
+                }
+            }
+        } catch (e1) {}
+
+        // 2) GeoPackage : le champ fid est le cas normal.
+        try {
+            var fs = selectedLayer.fields
+            if (fs && typeof fs.indexOf === "function") {
+                var candidates = ["fid", "FID", "ogc_fid", "OGC_FID"]
+                for (var i = 0; i < candidates.length; ++i)
+                    if (fs.indexOf(candidates[i]) >= 0)
+                        return candidates[i]
+            }
+        } catch (e2) {}
+
+        return "fid"
+    }
+
+    function sqlQuotedField(name) {
+        return '"' + String(name).replace(/"/g, '""') + '"'
+    }
+
+    function filteredFeatureIdSql() {
+        var ids = []
+        for (var i = 0; i < filteredRows.length; ++i) {
+            var value = String(filteredRows[i].featureId)
+            // Les FID QGIS / GeoPackage sont numériques. On refuse toute
+            // valeur inattendue au lieu de produire un SQL dangereux.
+            if (/^-?\d+$/.test(value))
+                ids.push(value)
+        }
+
+        if (ids.length === 0)
+            return "1 = 0"
+
+        return sqlQuotedField(mapFilterPrimaryKeyField()) +
+               " IN (" + ids.join(",") + ")"
+    }
+
+    function currentLayerSubset() {
+        if (!selectedLayer) return ""
+        try {
+            if (typeof selectedLayer.subsetString === "function")
+                return String(selectedLayer.subsetString() || "")
+            return String(selectedLayer.subsetString || "")
+        } catch (e) {
+            return ""
+        }
+    }
+
+    function setLayerSubset(layer, expression) {
+        if (!layer) return false
+        try {
+            if (typeof layer.setSubsetString === "function")
+                return layer.setSubsetString(expression)
+
+            // QField expose également subsetString comme propriété QML.
+            layer.subsetString = expression
+            return true
+        } catch (e) {
+            diagnosticMessage = qsTr("Impossible de filtrer la carte : %1").arg(String(e))
+            console.log("QField Table v0.14.0 subset: " + e)
+            return false
+        }
+    }
+
+    function applyMapFilter(showToast) {
+        if (!selectedLayer) return false
+
+        // Première application : mémoriser exactement le subset préexistant.
+        if (!mapFilterActive || mapFilterLayer !== selectedLayer) {
+            if (mapFilterActive)
+                restoreMapDisplay(false)
+
+            mapFilterLayer = selectedLayer
+            mapFilterOriginalSubset = currentLayerSubset()
+        }
+
+        var idsSql = filteredFeatureIdSql()
+        var combined = idsSql
+
+        if (mapFilterOriginalSubset.trim().length > 0)
+            combined = "(" + mapFilterOriginalSubset + ") AND (" + idsSql + ")"
+
+        if (!setLayerSubset(selectedLayer, combined)) {
+            mapFilterActive = false
+            mapFilterStatus = qsTr("Échec du filtre cartographique")
+            return false
+        }
+
+        mapFilterAppliedSubset = combined
+        mapFilterActive = true
+        mapFilterStatus = qsTr("%1 entité(s) affichée(s) sur la carte")
+                .arg(filteredRows.length)
+
+        try { selectedLayer.triggerRepaint() } catch (e1) {}
+
+        if (showToast !== false) {
+            try {
+                mainWindow.displayToast(
+                    qsTr("Carte filtrée : %1 entité(s).").arg(filteredRows.length))
+            } catch (e2) {}
+        }
+        return true
+    }
+
+    function restoreMapDisplay(showToast) {
+        if (!mapFilterActive || !mapFilterLayer) {
+            mapFilterActive = false
+            mapFilterAppliedSubset = ""
+            mapFilterStatus = ""
+            return true
+        }
+
+        var layer = mapFilterLayer
+        var original = mapFilterOriginalSubset
+        var ok = setLayerSubset(layer, original)
+
+        try { layer.triggerRepaint() } catch (e1) {}
+
+        mapFilterActive = false
+        mapFilterLayer = null
+        mapFilterAppliedSubset = ""
+        mapFilterOriginalSubset = ""
+        mapFilterStatus = ""
+
+        if (showToast !== false) {
+            try { mainWindow.displayToast(qsTr("Affichage complet de la carte restauré.")) }
+            catch (e2) {}
+        }
+        return ok
+    }
+
+    function setMapFilterEnabled(enabled) {
+        mapFilterEnabled = enabled
+
+        if (enabled)
+            applyMapFilter(true)
+        else
+            restoreMapDisplay(true)
+    }
+
+    function zoomToFilteredResults() {
+        if (!selectedLayer || filteredRows.length === 0)
+            return
+
+        var wasEnabled = mapFilterEnabled
+        var wasActive = mapFilterActive
+
+        // setCenterToLayer utilise l'étendue du subset courant. Si la
+        // synchronisation est désactivée, on applique donc le subset juste
+        // le temps de calculer l'étendue puis on restaure l'affichage.
+        if (!mapFilterActive && !applyMapFilter(false))
+            return
+
+        try {
+            var canvas = iface.mapCanvas()
+            if (canvas && canvas.mapSettings &&
+                typeof canvas.mapSettings.setCenterToLayer === "function") {
+                canvas.mapSettings.setCenterToLayer(selectedLayer, true)
+            } else {
+                diagnosticMessage = qsTr("La fonction de zoom sur la couche n'est pas disponible.")
+            }
+        } catch (e) {
+            diagnosticMessage = qsTr("Impossible de zoomer sur les résultats : %1").arg(String(e))
+        }
+
+        if (!wasEnabled && !wasActive)
+            restoreMapDisplay(false)
+    }
+
     function applyView() {
         var result = []
 
@@ -4127,6 +4341,11 @@ property int totalFeatureCount: 0
         }
 
         filteredRows = result
+
+        // Lorsque la synchronisation est activée, chaque filtre successif de
+        // la table est immédiatement répercuté sur la carte.
+        if (mapFilterEnabled)
+            applyMapFilter(false)
     }
 
 
@@ -4177,7 +4396,7 @@ property int totalFeatureCount: 0
             return true
         } catch (zoomError) {
             diagnosticMessage = qsTr("Impossible de zoomer sur l’entité : %1").arg(String(zoomError))
-            console.log("QField Table v0.13.2 zoom: " + zoomError)
+            console.log("QField Table v0.14.0 zoom: " + zoomError)
             return false
         }
     }
@@ -4218,7 +4437,7 @@ property int totalFeatureCount: 0
         try {
             LayerUtils.selectFeaturesInLayer(selectedLayer, [numericId])
         } catch (selectionError) {
-            console.log("QField Table v0.13.2 sélection : " + selectionError)
+            console.log("QField Table v0.14.0 sélection : " + selectionError)
         }
 
         refreshAfterNativeEdit = true
@@ -4267,7 +4486,7 @@ property int totalFeatureCount: 0
             })
 
         } catch (jumpError) {
-            console.log("QField Table v0.13.2 jumpTo : " + jumpError)
+            console.log("QField Table v0.14.0 jumpTo : " + jumpError)
 
             // Ne jamais empêcher l'édition si le zoom échoue.
             try {
@@ -4335,7 +4554,7 @@ property int totalFeatureCount: 0
             diagnosticMessage =
                     qsTr("Impossible d’ouvrir le formulaire natif : %1")
                     .arg(String(formError))
-            console.log("QField Table v0.13.2 formulaire natif : " + formError)
+            console.log("QField Table v0.14.0 formulaire natif : " + formError)
             try { mainWindow.displayToast(diagnosticMessage) } catch (toastError2) {}
             return false
         }
@@ -4390,7 +4609,7 @@ property int totalFeatureCount: 0
 
             return true
         } catch (e) {
-            console.log("QField Table v0.13.2 réglages autosave : " + e)
+            console.log("QField Table v0.14.0 réglages autosave : " + e)
             return false
         }
     }
@@ -4414,7 +4633,7 @@ property int totalFeatureCount: 0
                         nativeAutosaveSettingsPath,
                         JSON.stringify(payload, null, 2))
         } catch (e) {
-            console.log("QField Table v0.13.2 sauvegarde réglages : " + e)
+            console.log("QField Table v0.14.0 sauvegarde réglages : " + e)
             return false
         }
     }
@@ -4518,7 +4737,7 @@ property int totalFeatureCount: 0
 
         } catch (scrollError) {
             console.log(
-                "QField Table v0.13.2 défilement formulaire : " +
+                "QField Table v0.14.0 défilement formulaire : " +
                 scrollError)
             return false
         }
@@ -4565,7 +4784,7 @@ property int totalFeatureCount: 0
 
         // La première sauvegarde d'une nouvelle entité doit rester manuelle.
         if (nativeFormIsNewEntity()) {
-            console.log("QField Table v0.13.2 Autosave : nouvelle entité ignorée")
+            console.log("QField Table v0.14.0 Autosave : nouvelle entité ignorée")
             return
         }
 
@@ -4579,11 +4798,11 @@ property int totalFeatureCount: 0
                 mainWindow.displayToast(
                     qsTr("Autosauvegarde impossible : remplissez les champs obligatoires."))
 
-                console.log("QField Table v0.13.2 Autosave : contrainte invalide")
+                console.log("QField Table v0.14.0 Autosave : contrainte invalide")
                 return
             }
         } catch (constraintError) {
-            console.log("QField Table v0.13.2 Autosave contraintes : " +
+            console.log("QField Table v0.14.0 Autosave contraintes : " +
                         constraintError)
         }
 
@@ -4599,13 +4818,13 @@ property int totalFeatureCount: 0
 
             if (ok) {
                 mainWindow.displayToast(qsTr("Enregistrement automatique"))
-                console.log("QField Table v0.13.2 Autosave : sauvegarde réussie")
+                console.log("QField Table v0.14.0 Autosave : sauvegarde réussie")
             } else {
-                console.log("QField Table v0.13.2 Autosave : sauvegarde refusée")
+                console.log("QField Table v0.14.0 Autosave : sauvegarde refusée")
             }
 
         } catch (saveError) {
-            console.log("QField Table v0.13.2 Autosave erreur : " + saveError)
+            console.log("QField Table v0.14.0 Autosave erreur : " + saveError)
         }
     }
 
@@ -4614,7 +4833,7 @@ property int totalFeatureCount: 0
             return
 
         nativeAutosaveTimer.restart()
-        console.log("QField Table v0.13.2 Autosave : modification détectée")
+        console.log("QField Table v0.14.0 Autosave : modification détectée")
     }
 
     function saveNativeFeatureFormCore(showToast) {
@@ -4673,7 +4892,7 @@ property int totalFeatureCount: 0
             return false
 
         } catch (saveError) {
-            console.log("QField Table v0.13.2 sauvegarde : " + saveError)
+            console.log("QField Table v0.14.0 sauvegarde : " + saveError)
 
             if (showToast) {
                 try {
@@ -4746,7 +4965,7 @@ property int totalFeatureCount: 0
 
         } catch (closeError) {
             console.log(
-                "QField Table v0.13.2 fermeture après sauvegarde : " +
+                "QField Table v0.14.0 fermeture après sauvegarde : " +
                 closeError)
 
             returnToTableAfterNativeClose = true
@@ -4784,7 +5003,7 @@ property int totalFeatureCount: 0
                 drawer.close()
 
         } catch (cancelError) {
-            console.log("QField Table v0.13.2 annulation : " + cancelError)
+            console.log("QField Table v0.14.0 annulation : " + cancelError)
             try { drawer.close() } catch (closeError) {}
         }
     }
@@ -4816,7 +5035,7 @@ property int totalFeatureCount: 0
         var m = d ? d.featureModel : null
         var am = f ? f.model : null
 
-        var text = "QField Table v0.13.2 — diagnostic formulaire natif\n\n"
+        var text = "QField Table v0.14.0 — diagnostic formulaire natif\n\n"
         text += qmlObjectSummary(d, "OverlayFeatureFormDrawer")
         text += "\n" + qmlObjectSummary(f, "FeatureForm")
         text += "\n" + qmlObjectSummary(m, "FeatureModel")
@@ -4901,7 +5120,13 @@ property int totalFeatureCount: 0
                 console.log("QField Table — journal non chargé : " + batchJournalPersistenceError)
         })
         iface.addItemToPluginsToolbar(pluginButton)
-        console.log("QField Table v0.13.2 chargé")
+        console.log("QField Table v0.14.0 chargé")
+    }
+
+    Component.onDestruction: {
+        // Ne jamais laisser un subset temporaire dans le projet après
+        // désactivation ou rechargement du plugin.
+        restoreMapDisplay(false)
     }
 
     // Verrouille le canevas pendant l'édition. Le FeatureForm natif est
@@ -5282,7 +5507,7 @@ property int totalFeatureCount: 0
         id: browserDialog
         parent: mainWindow.contentItem
         modal: true
-        title: qsTr("QField Table — v0.13.2")
+        title: qsTr("QField Table — v0.14.0")
         standardButtons: Dialog.Close
         width: parent ? Math.max(900, parent.width * 0.96) : 1400
         height: parent ? Math.max(700, parent.height * 0.94) : 900
@@ -5327,6 +5552,42 @@ property int totalFeatureCount: 0
                     text: qsTr("%1 résultat(s) sur %2 chargé(s)")
                             .arg(plugin.filteredRows.length).arg(plugin.flatRows.length)
                     font.bold: true
+                }
+            }
+
+            RowLayout {
+                Button {
+                    text: plugin.mapFilterEnabled
+                          ? qsTr("🗺 Carte synchronisée")
+                          : qsTr("🗺 Filtrer la carte")
+                    checkable: true
+                    checked: plugin.mapFilterEnabled
+                    enabled: plugin.selectedLayer !== null
+                    onClicked: plugin.setMapFilterEnabled(checked)
+                }
+
+                Button {
+                    text: qsTr("Afficher toute la carte")
+                    enabled: plugin.mapFilterActive || plugin.mapFilterEnabled
+                    onClicked: {
+                        plugin.mapFilterEnabled = false
+                        plugin.restoreMapDisplay(true)
+                    }
+                }
+
+                Button {
+                    text: qsTr("Zoomer sur les résultats")
+                    enabled: plugin.filteredRows.length > 0
+                    onClicked: plugin.zoomToFilteredResults()
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: plugin.mapFilterEnabled
+                          ? plugin.mapFilterStatus
+                          : qsTr("La carte n'est pas liée aux filtres de la table.")
+                    opacity: 0.72
+                    elide: Text.ElideRight
                 }
             }
 
@@ -5892,7 +6153,7 @@ property int totalFeatureCount: 0
                 }
             }
 
-            // v0.13.2 : ListView virtualisé. Contrairement au Repeater des versions
+            // v0.14.0 : ListView virtualisé. Contrairement au Repeater des versions
             // précédentes, seules les lignes présentes à l’écran (et un petit tampon)
             // sont instanciées. C’est le changement principal de performance.
             ListView {
