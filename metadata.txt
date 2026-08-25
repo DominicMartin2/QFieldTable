@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.14.0
-description=QField Table v0.14.0 : synchronisation optionnelle des filtres avec la carte, restauration de l'affichage et zoom sur les résultats.
+version=0.14.1
+description=QField Table v0.14.1 : correction du filtre cartographique en utilisant fid en priorité pour les GeoPackages.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
