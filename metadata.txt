@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.14.3
-description=QField Table v0.14.3 : filtre cartographique basé sur la valeur réelle du champ fid et nettoyage des anciens subsets QField Table.
+version=0.14.4
+description=QField Table v0.14.4 : option Vider le champ (NULL) pour les champs simples en modification en lot.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
