@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.13.1
-description=QField Table v0.13.1 : chargement complet automatique de la couche, sans limite initiale de 100 enregistrements.
+version=0.13.2
+description=QField Table v0.13.2 : modification en lot avec remise à NULL des ValueRelation simples et vidage {} des ValueRelation multiples.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
