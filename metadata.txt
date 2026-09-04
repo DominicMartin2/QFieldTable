@@ -1,7 +1,7 @@
 [general]
 name=QField Table
-version=0.14.6
-description=QField Table v0.14.6 : persistance locale automatique des filtres courants et de la synchronisation cartographique.
+version=0.14.7
+description=QField Table v0.14.7 : restauration de la couche complète après un filtre cartographique de démarrage.
 author=Dominic Martin
 qfield_version=4.0
 icon=icon.svg
